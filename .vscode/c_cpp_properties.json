@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/esp_hw_support/include/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/esp_wifi/include/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

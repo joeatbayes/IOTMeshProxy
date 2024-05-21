@@ -11,6 +11,7 @@
   #define diffieh
 
 #include <esp_random.h>
+#include <math.h>
 
 
 #ifndef DHPRIME_P

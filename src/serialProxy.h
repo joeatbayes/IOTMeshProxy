@@ -50,6 +50,8 @@ See: ../readme.md for protocol and design overview.
 
 
 #include <cstring>
+#include <stdlib.h>
+#include <stdint.h>
 
 class SerialProxyStream {
 private:

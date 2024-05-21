@@ -1,4 +1,6 @@
 # IOT Mesh Proxy 
+### STATUS: WIP - Please provide comments but do not use in an Important projet until version we Exist WIP Status
+
 #### IoT Mesh Proxy to securely carry data and serial emulation across a dynamically discoverd mesh of sensor nodes.
 
    - Secure Peer Discovery: Users initiate secure pairing with

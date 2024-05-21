@@ -4,8 +4,10 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/esp_hw_support/include/**",
-                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/esp_wifi/include/**"
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/libraries/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/cores/esp32",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

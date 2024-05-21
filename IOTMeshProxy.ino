@@ -1,8 +1,8 @@
-/* espnow_broadcast_serial_bridge
+/* IoT Mesh Proxy -
 *
+*  Securely carry data and serial emulation across a dynamically discoverd mesh of sensor nodes.
 *  See: readme.txt for protocol design and 
 *   detailed design notes
-*
 *  
 */
 

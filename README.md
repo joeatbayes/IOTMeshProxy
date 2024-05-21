@@ -190,11 +190,14 @@ These broadcast connections must be sent during the wake interval. However, if t
 ```      
 
 ----
-## PROXY COMMANDS
+## PROXY & MESH
 
-#### Proxy and Mesh Commands: Delivering Messages Across the Network
+#### Proxy and Mesh Commands: Delivering Messages & Serial Emulation Across a diffuse sensor Network
 
-Proxy and mesh commands enable message delivery to any node within the network, even if it requires traversing multiple intermediate nodes due to range limitations.
+Enable Proxy and mesh command message delivery to any node within the
+network, even if it requires traversing multiple intermediate nodes
+due to range limitations.
+
 
   - **Routing:** Messages received from MAC1 can be routed to MAC2, but the system also allows for dynamic proxy discovery.
   - **Proxy Discovery:** Each node records the MAC addresses of nodes that respond to its messages. This allows the network to discover a chain of proxy nodes with a clear path to a specific target.
@@ -215,7 +218,7 @@ Proxy and mesh commands enable message delivery to any node within the network, 
    
 
 ----
-## MESH SUPPORT USING INTERMEDIATE PROXIES
+### MESH SUPPORT USING INTERMEDIATE PROXIES
 
 ESPNow is preferred over BLE mesh for this application because some of the more stable, cheaper, and power-conservative ESP32 chips lack BLE capability. Competitive pre-certified modules with FCC certification for BLE are more expensive than low-end ESP32 chips. While ESPNow is the primary target, the system is flexible and can be extended to use BLE, LORA, or other protocols for message delivery. This allows us to use LORA when using ESPNow would require too many proxy hops. It also allows a single message to cross multiple back ends before it's ultimate delivery. 
 
@@ -233,9 +236,13 @@ Once the node that chose a path sends the ESTPROXY command, the intermediate nod
 
 The analyzer node needs to know the relative RSSI (received signal strength indicator) of each responding node in the link. This is because the path may have short hops with very low signal strengths, which we want to avoid. So, during discovery, each participating node briefly enters AP mode so the peer can query for RSSI using a standard Wi-Fi scan.
 
+----
+### Proxy, MESH & Discovery Commands
 
 
- TODO: Negotiate WAKUP interval so clients and servers can go into
+
+# ACTIONS:
+- TODO: Negotiate WAKUP interval so clients and servers can go into
   deep sleep but still be avaialble to recieve next message. Needs to
   allow mechanism to stay awake or wake up often to resync time if 
   initial connection fails. 

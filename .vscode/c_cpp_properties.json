@@ -6,8 +6,11 @@
                 "${workspaceFolder}/**",
                 "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32/include/**",
                 "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/libraries/**",
-                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/cores/esp32",
-                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/**"
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/cores/esp32/**",
+                "/home/jwork/.arduino15/packages/esp32/tools/xtensa-esp32s3-elf-gcc/esp-2021r2-patch5-8.4.0/xtensa-esp32s3-elf/include/",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/**",
+                "/home/jwork/.arduino15/packages/esp32/hardware/esp32/2.0.16/tools/sdk/esp32s3/include/newlib/platform_include/sys/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

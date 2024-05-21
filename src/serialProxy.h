@@ -48,80 +48,90 @@ See: ../readme.md for protocol and design overview.
 #ifndef serialProxyh
   #define serialProxyh
 
+#include "Stream.h"
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <functional>
+#include "IoTMeshProxy.h"
+// Include your network messaging library headers here
+// (replace with your specific library)
+// For example: #include <custom_network_library.h>
 
-#include <cstring>
-#include <stdlib.h>
-#include <stdint.h>
+class NetworkStream : public Stream {
 
-class SerialProxyStream {
 private:
-  // Buffer to store received data
-  uint8_t buffer[128]; // Adjust buffer size as needed
-  int bufferIndex;
-
-  // Buffer to store data to be transmitted
-  uint8_t txBuffer[128]; // Adjust buffer size as needed
-  int txBufferIndex;
+  std::string txBuffer;
+  std::string rxBuffer;
+  IoTMeshProxy *mprox;
+  Stream *ser;
 
 public:
-  ESPNowStream() : bufferIndex(0), txBufferIndex(0) {}
-
-  // Function to handle received ESPNow packets (replace with your actual receive logic)
-  void onReceive(const uint8_t *data, size_t len) {
-    // Check for buffer overflow
-    if (bufferIndex + len >= sizeof(buffer)) {
-      // Handle buffer overflow (e.g., discard data or throw exception)
-      return;
-    }
-
-    // Copy received data to buffer
-    memcpy(buffer + bufferIndex, data, len);
-    bufferIndex += len;
+  NetworkStream(Stream *serialSource, IoTMeshProxy *mp, int rxBuffSize, int txBuffSize) {
+    ser = serialSource;
+    mprox = mp;
+    txBuffer.reserve(rxBuffSize);
+    rxBuffer.reserve(rxBuffSize);
   }
 
-  // Emulates Serial.readline, waits for a complete packet (ending with newline)
-  std::string readline() {
-    std::string result;
 
-    // Loop until a newline is found or buffer is empty
-    while (bufferIndex > 0 && result.find('\n') == std::string::npos) {
-      // Extract character from buffer
-      char c = static_cast<char>(buffer[0]);
-
-      // Append character to result string
-      result += c;
-
-      // Remove character from buffer
-      memmove(buffer, buffer + 1, bufferIndex - 1);
-      bufferIndex--;
-    }
-
-    // Check if a newline was found
-    if (result.find('\n') != std::string::npos) {
-      // Remove trailing newline from result (optional)
-      result.pop_back();
-    }
-
-    return result;
+  // Implementations for Stream virtual functions
+  int available() override {
+    // In this case, available data over the network might be unreliable
+    // You can return 0 or implement logic to check for available data
+    // based on your network library.
+    return 0;
   }
 
-  // Simulates writing data to ESPNow (replace with your actual transmit logic)
-  size_t write(uint8_t data) {
-    // Check for buffer overflow
-    if (txBufferIndex >= sizeof(txBuffer)) {
-      // Handle buffer overflow (e.g., return error or wait for space)
-      return 0;
-    }
-
-    // Add data to transmit buffer
-    txBuffer[txBufferIndex++] = data;
-
-    // Replace with your actual ESPNow transmit logic (e.g., call a send function)
-    // This example simulates successful transmission by returning the data size
-    return 1;
+  int read() override {
+    // Reading from a network stream might not be character-by-character
+    // You might need to implement buffering or rely on higher-level 
+    // network message parsing depending on your library.
+    return -1; // Indicate no character available for now
   }
+
+  int peek() override {
+    // Similar to read(), peeking might not be straightforward
+    // Implement based on your network library capabilities.
+    return -1;
+  }
+
+  // Implementations for Print virtual functions (assuming write is used)
+  size_t write(uint8_t b) override {
+    // Handle writing a single byte to the network stream
+    // Implement based on your network library.
+    buffer_ += static_cast<char>(b);
+    if (buffer_.size() >= BUFFER_SIZE || b == '\n') {
+      // Send buffer content over the network (replace with actual implementation)
+      send_message(address_, buffer_);
+      buffer_.clear();
+    }    
+    return 1; // Indicate successful write (replace with actual implementation)
+  }
+
+  size_t write(const uint8_t* buffer, size_t size) override {
+    // Handle writing a buffer of bytes to the network stream
+    // Implement based on your network library.
+    // You can use send_message or a separate function for efficiency.
+    std::string data(buffer, size);
+    send_message(address_, data);
+    return size; // Indicate successful write (replace with actual implementation)
+  }
+
+  std::string address_;
+
+  // Function to send message using your network messaging library
+  // (replace with your specific implementation)
+  virtual void send_message(const std::string& address, const std::string& message) = 0;
 };
 
+int main() {
+  // Use NetworkStream instead of std::cout
+  NetworkStream network_stream("server_address");
+  network_stream.print("This message will be sent over the network: ");
+  network_stream.println(42);
+  return 0;
+}
 
 
 #endif

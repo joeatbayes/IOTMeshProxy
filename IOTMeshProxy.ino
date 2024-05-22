@@ -6,7 +6,7 @@
  *
  */
 
-#include "src/diffie.h"
+
 #include "src/IoTMeshProxy.h"
 
 IoTMeshProxy *proxy;

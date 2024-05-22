@@ -1,10 +1,23 @@
 # IOT Mesh Proxy 
-### STATUS: WIP - Please provide comments but do not use in an Important projet until version we Exist WIP Status
+### STATUS: UNDER CONSTRUCTION - Please provide comments and contact us before using in an Important project See: license.txt
+
+#### The Challenge of Large-Scale Sensor Networks:
+
+Imagine deploying thousands of sensor nodes across hundreds of acres, an area far exceeding the reach of typical Wi-Fi mesh networks. Now, picture doing this without a dedicated IT team or expensive network infrastructure – a daunting task, right? The goal is to efficiently collect data from all these battery-powered nodes, ensuring long lifespans with limited solar recharge. Existing solutions often fall short. 
+
+#### A Cost-Effective and Dynamic Solution:
+
+IoTMeshProxy's innovative approach tackles this challenge head-on. It utilizes low-cost nodes (under $5 each) that seamlessly join the network mesh in an ad-hoc manner.  It eliminates the need for pre-configured placements. The network itself is self-organizing, automatically adjusting routing paths as new nodes are added. Additionally, it supports the automatic discovery of nodes offering specific services, such as data logging or high-bandwidth uplinks.
+
+#### Scalability and Adaptability:
+
+The beauty of this system lies in its scalability and adaptability. Weak signal areas can be easily addressed by adding a few bridge nodes. Similarly, exceeding bandwidth limits in specific zones can be resolved by adding uplink nodes with the routing automatically adapting to optimize traffic flow.  The system overcomes common issues with typical mesh systems by using a semi-directed routing approach. This allows each message to follow the shortest available path, with exceptions made to avoid overloaded connections. Only discovery and network formation messages are distributed more widely, and only as far as needed to establish the shortest paths. This dramatically reduces the total message volume that each node sees, improving overall network data capacity and extending battery life.
+
 
 #### IoT Mesh Proxy to securely carry data and serial emulation across a dynamically discoverd mesh of sensor nodes.
 
-   - Secure Peer Discovery: Users initiate secure pairing with
-     other nodes using Diffie-Hellman key exchange for
+   - Secure Peer Discovery: Users initiate pairing with
+     other nodes using encrypted key exchange for
      encrypted communication.
      
    - Dynamic Peer Discovery: Users can discover new nodes 
@@ -96,17 +109,19 @@ These broadcast connections must be sent during the wake interval. However, if t
                      sequences.  May also be considered unique kind of command
                      at least for actions that result in imperitive action.
                      Start NDX=7  
-    MSGID    - X3 -  Unique message id used for different kinds of ACK
+    MSGID    - X4 -  Unique message id used for different kinds of ACK
                      and error processing.  Maintained as a counter 
                      inside of each client. Incremented for each message
                      they send. 
                      START NDX=10
     PAYLOAD - Char Str upto 250 character max bytes less overhead in 
                      this protocol.
-                     Start NDX=11,  MAXNDX=250-8; 
+                     Start NDX=14,  MAXNDX=250-8,
+                     MaxLen= 250 - (14+8) = 230 bytes
                      
-    CRC     - X8     Computed CRC for prior string. 
-                     Start NDX is STRLEN(MESSAGE) - 8;
+    CRC     - X4     Computed 16bit little endian CRC for prior string. 
+                     Start NDX is STRLEN(MESSAGE) - 4;
+
 *
 
 

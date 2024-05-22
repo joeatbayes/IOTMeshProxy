@@ -2,6 +2,9 @@
 
 */
 
+#ifndef utilh
+  #define utilh
+
 // Format a standard format 6 byte MAC for human
 // readability
 void formatMac(char *dest, const uint8_t *mac) {
@@ -15,3 +18,33 @@ unsigned long elapMs(unsigned long start) {
 }
 
 
+
+inline int min(int x, int y) {
+  return (x < y) ? x : y;
+}
+
+inline int max(int x, int y) {
+  return (x > y) ? x : y;
+}
+
+
+// Function to generate a random number within a given range (inclusive)
+uint64_t random_in_range(uint64_t min, uint64_t max) {
+  uint64_t tr;
+  esp_fill_random(&tr, 8);  
+  //esp_random(&tr);  
+  while (tr < min) {    
+    uint8_t adjv;
+    esp_fill_random(&adjv, 1);  
+    tr = tr >> 8;
+    *(uint8_t *)tr = adjv;
+  }
+  while (tr > max) {
+    tr = tr << 1;
+  }
+  return (uint64_t) tr;
+}
+
+
+
+#endif

@@ -20,8 +20,16 @@
 #include <string.h>
 #include <ctype.h>
 #include <esp_crc.h>
-#include "diffie.h"
+#include "keys.h"
 #include "util.h"
+#include "math.h"
+#ifdef ESP32CRC
+  #include "crc.h"
+#else
+  #include "CRC.h" // see: https://github.com/RobTillaart/CRC/
+  #include "CRC16.h"
+#endif
+
 
 // SEE: https://github.com/espressif/esp-idf/blob/4523f2d6/components/esp_wifi/include/esp_now.h
 
@@ -31,7 +39,8 @@
 #define PAIR_FOR_MS 30000
 #define MSGPREF 01
 #define COMMAND_PAIR 001
-
+#define MAXHEX3 4096
+#define MAXHEX4 65535
 class IoTMeshProxy
 {
 
@@ -43,9 +52,16 @@ public:
     static inline int CHANNEL = 1;
     static inline char *SBuff = NULL;
     static inline char DefaultConfigName[] = "IoTMesh.cfg";
-    static inline char isStaticInitComplete= false;
+    static inline bool isStaticInitComplete= false;
+    static const short MAX_MSG_LEN=250;
+    static const short CHAR_USED_BY_HEADER=13;
+    static const short CHAR_USED_BY_CRC=4;
+    static const short CHAR_USED_BY_OVERHEAD= CHAR_USED_BY_HEADER + CHAR_USED_BY_CRC;
+    static const short MAX_PAYLOAD_LEN= MAX_MSG_LEN - CHAR_USED_BY_OVERHEAD;
+    static char myMAC[16];
 
     // Instance Variables
+    uint64_t currOnBoardRNum = random_in_range(1, UINT64_MAX);
     unsigned long long privKey = 0;
     unsigned long long pubKey = 0;
     unsigned long long sharedKey = 0;
@@ -54,6 +70,7 @@ public:
     unsigned long lastPairStarted = 0;
     unsigned long lastPairSent = 0;
     IoTMeshProxy *nextHandler = NULL;
+    
 
     /* Default constructor */
     IoTMeshProxy()
@@ -86,6 +103,8 @@ public:
         }
     } // func
 
+    #define MP_PAYLOAD_TOO_LONG 87
+
     static const char *EspNowError(int errNum)
     {
         switch (errNum)
@@ -110,12 +129,60 @@ public:
             return "ESP_ERR_ESPNOW_EXIST";
         case ESP_ERR_ESPNOW_IF:
             return "ESP_ERR_ESPNOW_IF";
+        case MP_PAYLOAD_TOO_LONG:
+            return "PAYLOAD TOO LONG";
         // case  ESP_ERR_ESPNOW_CHAN:
         //   return "ESP_ERR_ESPNOW_CHAN";
         default:
             return "ESP UNKNOWN ERROR";
         } // switch
     } // func
+
+    // formats message and sends it to target MAC Id.   Returns any
+    // error 
+
+    int sendMsg(uint8_t *mac, const uint8_t  *msg, int dsize) {
+       // Lookup the peer to see if we already have 
+       // security establish if so see if we already 
+       // have a peer esablished. If we do have peer 
+       // established check to ensure it is using encrypted key
+       // if we have one if not modify the conneciton to use 
+       // the encrypted key oterhwise need to send the connect
+       // message if not already connected. 
+       // Check and add peer if needed and give it a second 
+       // before we try again.   
+       // Need to add to the recent send ring buffer 
+       // so we can resend as needed.   Also need to add to the 
+       // pending ACK queue before trying to send another 
+       // message. so we can keep resending if not acked. 
+
+       esp_err_t result = esp_now_send(mac, (const uint8_t *)msg, dsize);
+       if (result != ESP_OK) {       
+            const char *errStr = EspNowError(result);
+            Serial.printf("failed send res=%d %s\n", result, errStr);
+        }        
+    }
+
+    // formats message and sends it to the target MAC ID.
+    // returns ESP_IK or one of errors ESP_ERR values
+    int sendMsg(uint8_t mac, short appId, short destId, short msgType, short msgId, char *data, int dtaSize) {
+        char buff[MAX_MSG_LEN+1];
+        if (dtaSize > MAX_PAYLOAD_LEN) {
+            return MP_PAYLOAD_TOO_LONG;
+        }
+        dtaSize = max(0,min(dtaSize, MAX_PAYLOAD_LEN));
+        data[dtaSize] = 0; // limit our buffer size sent. 
+        int blen=sprintf(buff, "%3x%4x%3x%3x%s",
+            min(appId,MAXHEX3), min(destId,MAXHEX4), min(msgType,MAXHEX3), 
+            min(msgId,MAXHEX4), data);
+        #ifdef ESP32CRC
+          uint16_t crc16 = crc16_le(0, (const uint8_t *) buff, blen);
+        #else
+          uint16_t crc16 = calcCRC16((const uint8_t  *) buff, blen);
+        #endif
+        sprintf(buff+blen, "%4x", crc16);
+        
+    }
 
     static void SendBroadcast(const uint8_t *msg, int size)
     {
@@ -125,7 +192,7 @@ public:
         {
             const char *errStr = EspNowError(result);
             Serial.printf("failed send res=%d %s\n", result, errStr);
-        }
+        }        
     }
 
     static bool IsCommandStr(const uint8_t *data, int dataLen)
@@ -140,6 +207,7 @@ public:
         }
         return false;
     } // func
+
 
     // return the first handler that matches the
     // requested app id or return NULL if no matching
@@ -192,7 +260,12 @@ public:
         msgId = (short)strtoul(dp, NULL, 16);
         //  Pull last 8 bytes and compare to reste of message using
         //  hardware CRC.
-        crc = (long)strtol(sdp + (dataLen - 8), NULL, 16);
+        #ifdef ESP32CRC
+          crc = (long)strtol(sdp + (dataLen - 8), NULL, 16);
+        #else
+          crc = calcCRC16((uint8_t *)buff, dataLen - 4);
+        #endif
+
         data[dataLen - 9] = 0;
         body = (char *)data - 8;
 
@@ -250,7 +323,8 @@ public:
         WiFi.mode(WIFI_STA);
         esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
         Serial.print("STA MAC: ");
-        Serial.println(WiFi.macAddress());
+        myMAC = (char *) WiFi.macAddress().c_str();
+        Serial.println();
         Serial.print("STA CHANNEL ");
         Serial.println(WiFi.channel());
         pinMode(PAIR_BUTTON, INPUT_PULLUP);
@@ -323,10 +397,14 @@ public:
     {
         if (this->isInPairMode())
         {
-            if (elapMs(this->lastPairSent) > 5000)
-            {
+            if (elapMs(this->lastPairSent) > 5000)            
+            {   // don't know the other guys key yet 
+                // unit65 initKey = makeInitKey(KEYS_KEY1, myMAC, myMAC, currOnBoardRNum);
                 Serial.printf("send pair request\n");
-                sprintf((char *)SBuff, "%03X:%03X:%036llX", MSGPREF, COMMAND_PAIR, pubKey);
+                // Sends the pairing request with my current random number 
+                // which we will use to compute the key for the initial 
+                // connection in the Reponse record.
+                sprintf((char *)SBuff, "%03X:%03X:%017llX", MSGPREF, COMMAND_PAIR, currOnBoardRNum);
                 Serial.println("after sprintf");
                 SendBroadcast((const uint8_t *)SBuff, strlen((char *)SBuff));
                 this->lastPairSent = millis();

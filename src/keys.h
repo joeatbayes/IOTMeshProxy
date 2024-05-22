@@ -24,21 +24,21 @@
 // the network.   Will revisit this when I find a 
 // good eliptic curve base diffie hellman library
 
-#ifndef mpkeysh
+#ifndef MP_KEY
  #define mpkeysh
+
+//#include <stdlib.h>
+//#include <ctype.h>
+#include <string.h>
+//#include <math.h>
+#include <stdio.h>
+
 #ifndef KEYS_KEY1
   // overridge this by defining application or company specific 
   // _KEY1.  If this number is different then key handshake 
   // will not work. 
   const uint64_t KEYS_KEY1 = 5370282887863;
 #endif 
-#include <stdlib.h>
-//#include <math.h>
-//#include <ctype.h>
-#include <string.h>
-
- 
-
 
 
 uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2, uint64_t rnum ) {

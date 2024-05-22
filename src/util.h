@@ -2,8 +2,13 @@
 
 */
 
-#ifndef utilh
-  #define utilh
+#ifndef IMP_UTIL_H
+  #define IMP_UTIL_H
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <Arduino.h>
+  #include "esp_random.h"
+  
 
 // Format a standard format 6 byte MAC for human
 // readability

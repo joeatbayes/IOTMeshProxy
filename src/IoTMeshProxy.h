@@ -19,12 +19,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <esp_crc.h>
+
 #include "keys.h"
 #include "util.h"
 #include "math.h"
+
+#define ESP32CRC
 #ifdef ESP32CRC
-  #include "crc.h"
+  #include <esp_crc.h>
+  //#include "crc.h"
 #else
   #include "CRC.h" // see: https://github.com/RobTillaart/CRC/
   #include "CRC16.h"
@@ -33,8 +36,24 @@
 
 // SEE: https://github.com/espressif/esp-idf/blob/4523f2d6/components/esp_wifi/include/esp_now.h
 
-//esp_now_peer_info_t broadcaster = {};
-//uint8_t broadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
+class IoTMeshProxy;
+esp_now_peer_info_t IMP_Broadcaster = {};
+const uint8_t IMP_BroadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
+int IMP_CHANNEL = 1;
+const short IMP_MAX_MSG_LEN=250;
+const short IMP_CHAR_USED_BY_HEADER=13;
+const short IMP_CHAR_USED_BY_CRC=4;
+const short IMP_CHAR_USED_BY_OVERHEAD= IMP_CHAR_USED_BY_HEADER + IMP_CHAR_USED_BY_CRC;
+const short IMP_MAX_PAYLOAD_LEN= IMP_MAX_MSG_LEN - IMP_CHAR_USED_BY_OVERHEAD;
+const char  IMP_DefaultConfigName[] = "IoTMesh.cfg";
+char *IMP_SBuff=NULL;
+IoTMeshProxy *IMP_FirstHandler=NULL;    
+bool IMP_isStaticInitComplete=false;
+uint8_t IMP_MAC[6];
+
+
+//esp_now_peer_info_t IMP_Broadcaster = {};
+//uint8_tIMP_BroadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
 #define PAIR_BUTTON 0
 #define PAIR_FOR_MS 30000
 #define MSGPREF 01
@@ -45,21 +64,7 @@ class IoTMeshProxy
 {
 
 public:
-    // Static Variables
-    static inline esp_now_peer_info_t Broadcaster = {};
-    static inline uint8_t BroadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
-    static inline IoTMeshProxy *FirstHandler = NULL;
-    static inline int CHANNEL = 1;
-    static inline char *SBuff = NULL;
-    static inline char DefaultConfigName[] = "IoTMesh.cfg";
-    static inline bool isStaticInitComplete= false;
-    static const short MAX_MSG_LEN=250;
-    static const short CHAR_USED_BY_HEADER=13;
-    static const short CHAR_USED_BY_CRC=4;
-    static const short CHAR_USED_BY_OVERHEAD= CHAR_USED_BY_HEADER + CHAR_USED_BY_CRC;
-    static const short MAX_PAYLOAD_LEN= MAX_MSG_LEN - CHAR_USED_BY_OVERHEAD;
-    static char myMAC[16];
-
+ 
     // Instance Variables
     uint64_t currOnBoardRNum = random_in_range(1, UINT64_MAX);
     unsigned long long privKey = 0;
@@ -75,15 +80,15 @@ public:
     /* Default constructor */
     IoTMeshProxy()
     {
-        if (!isStaticInitComplete) {
+        if (!IMP_isStaticInitComplete) {
             // Moved here because we want to delay calling it
             // until after Serial.begin() has been completed
             // in setup():
             InitESPNow();
             Serial.println("InitESPNow is complete()");
         }
-        privKey = genPrivateKey();
-        pubKey = genPublicKey(privKey);
+        //privKey = genPrivateKey();
+        //pubKey = genPublicKey(privKey);
         IoTMeshProxy::RegisterHandler(this);
     }
 
@@ -103,7 +108,7 @@ public:
         }
     } // func
 
-    #define MP_PAYLOAD_TOO_LONG 87
+    #define IMP_PAYLOAD_TOO_LONG 87
 
     static const char *EspNowError(int errNum)
     {
@@ -129,7 +134,7 @@ public:
             return "ESP_ERR_ESPNOW_EXIST";
         case ESP_ERR_ESPNOW_IF:
             return "ESP_ERR_ESPNOW_IF";
-        case MP_PAYLOAD_TOO_LONG:
+        case IMP_PAYLOAD_TOO_LONG:
             return "PAYLOAD TOO LONG";
         // case  ESP_ERR_ESPNOW_CHAN:
         //   return "ESP_ERR_ESPNOW_CHAN";
@@ -161,22 +166,23 @@ public:
             const char *errStr = EspNowError(result);
             Serial.printf("failed send res=%d %s\n", result, errStr);
         }        
+      return result;
     }
 
     // formats message and sends it to the target MAC ID.
     // returns ESP_IK or one of errors ESP_ERR values
     int sendMsg(uint8_t mac, short appId, short destId, short msgType, short msgId, char *data, int dtaSize) {
-        char buff[MAX_MSG_LEN+1];
-        if (dtaSize > MAX_PAYLOAD_LEN) {
-            return MP_PAYLOAD_TOO_LONG;
+        char buff[IMP_MAX_MSG_LEN+1];
+        if (dtaSize > IMP_MAX_PAYLOAD_LEN) {
+            return IMP_PAYLOAD_TOO_LONG;
         }
-        dtaSize = max(0,min(dtaSize, MAX_PAYLOAD_LEN));
+        dtaSize = max(0,min(dtaSize, IMP_MAX_PAYLOAD_LEN));
         data[dtaSize] = 0; // limit our buffer size sent. 
         int blen=sprintf(buff, "%3x%4x%3x%3x%s",
             min(appId,MAXHEX3), min(destId,MAXHEX4), min(msgType,MAXHEX3), 
             min(msgId,MAXHEX4), data);
         #ifdef ESP32CRC
-          uint16_t crc16 = crc16_le(0, (const uint8_t *) buff, blen);
+          uint16_t crc16 = esp_crc16_le(0, (const uint8_t *) buff, blen);
         #else
           uint16_t crc16 = calcCRC16((const uint8_t  *) buff, blen);
         #endif
@@ -187,7 +193,7 @@ public:
     static void SendBroadcast(const uint8_t *msg, int size)
     {
         Serial.println("sending broadcast");
-        esp_err_t result = esp_now_send(BroadcastAddress, (const uint8_t *)msg, size);
+        esp_err_t result = esp_now_send(IMP_BroadcastAddress, (const uint8_t *)msg, size);
         if (result != ESP_OK)
         {
             const char *errStr = EspNowError(result);
@@ -214,7 +220,7 @@ public:
     // handler is found.
     static IoTMeshProxy *GetHandler(short appId)
     {
-        IoTMeshProxy *handler = FirstHandler;
+        IoTMeshProxy *handler = IMP_FirstHandler;
         while (true)
         {
             if (handler == NULL)
@@ -321,24 +327,24 @@ public:
     static void InitESPNow()
     {
         WiFi.mode(WIFI_STA);
-        esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+        esp_wifi_set_channel(IMP_CHANNEL, WIFI_SECOND_CHAN_NONE);
         Serial.print("STA MAC: ");
-        myMAC = (char *) WiFi.macAddress().c_str();
+        esp_read_mac(IMP_MAC, ESP_MAC_WIFI_STA );        
         Serial.println();
         Serial.print("STA CHANNEL ");
         Serial.println(WiFi.channel());
         pinMode(PAIR_BUTTON, INPUT_PULLUP);
 
-        formatMac((char *)SBuff, BroadcastAddress);
-        Serial.printf("broadcast MAC=%s ", SBuff);
+        formatMac((char *)IMP_SBuff,IMP_BroadcastAddress);
+        Serial.printf("broadcast MAC=%s ", IMP_SBuff);
 
         Serial.print("AP MAC: ");
         Serial.println(WiFi.softAPmacAddress());
         Serial.println("L81: before memcpy");
 
         // Load our Broadcast address into our default
-        // broadaster. All instances use the same broadcaster
-        memcpy(&Broadcaster.peer_addr, BroadcastAddress, 6);
+        // broadaster. All instances use the same IMP_Broadcaster
+        memcpy(&IMP_Broadcaster.peer_addr,IMP_BroadcastAddress, 6);
 
         WiFi.disconnect();
         if (esp_now_init() == ESP_OK)
@@ -356,19 +362,19 @@ public:
         Serial.println("after onRec register");
         esp_now_register_send_cb(OnDataSent);
         Serial.println("after onSend register");
-        if (!esp_now_is_peer_exist(BroadcastAddress))
+        if (!esp_now_is_peer_exist(IMP_BroadcastAddress))
         {
-            int stat = esp_now_add_peer(&Broadcaster);
+            int stat = esp_now_add_peer(&IMP_Broadcaster);
             if (stat != ESP_OK)
             {
-                Serial.printf("L278: failed broadcaster add res=%d %s\n", stat, EspNowError(stat));
+                Serial.printf("L278: failed IMP_Broadcaster add res=%d %s\n", stat, EspNowError(stat));
             } else {
-                Serial.println("L288: Added broadcaster as peer");
+                Serial.println("L288: Added IMP_Broadcaster as peer");
             }
         }
         // WiFi.softAPdisconnect(true);
         // WiFi.mode(WIFI_STA);
-        isStaticInitComplete=true;
+        IMP_isStaticInitComplete=true;
     } // func
 
     // register a handler instance of a proxy to process messages
@@ -378,13 +384,13 @@ public:
     // we hit a null and know that we have hit the end.
     static void RegisterHandler(IoTMeshProxy *proxy)
     {
-        if (FirstHandler == NULL)
+        if (IMP_FirstHandler == NULL)
         {
-            FirstHandler = proxy;
+            IMP_FirstHandler = proxy;
         }
         else
         {
-            IoTMeshProxy *handler = FirstHandler;
+            IoTMeshProxy *handler = IMP_FirstHandler;
             while (handler->nextHandler != NULL)
             {
                 handler = handler->nextHandler;
@@ -404,9 +410,9 @@ public:
                 // Sends the pairing request with my current random number 
                 // which we will use to compute the key for the initial 
                 // connection in the Reponse record.
-                sprintf((char *)SBuff, "%03X:%03X:%017llX", MSGPREF, COMMAND_PAIR, currOnBoardRNum);
+                sprintf((char *)IMP_SBuff, "%03X:%03X:%017llX", MSGPREF, COMMAND_PAIR, currOnBoardRNum);
                 Serial.println("after sprintf");
-                SendBroadcast((const uint8_t *)SBuff, strlen((char *)SBuff));
+                SendBroadcast((const uint8_t *)IMP_SBuff, strlen((char *)IMP_SBuff));
                 this->lastPairSent = millis();
             }
         }
@@ -418,7 +424,7 @@ public:
 
     void loadConfig()
     {
-        loadConfig(DefaultConfigName);
+        loadConfig((char *) IMP_DefaultConfigName);
     }
 
 }; // class

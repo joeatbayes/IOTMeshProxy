@@ -233,7 +233,7 @@ public:
           uint16_t crc16 = calcCRC16((const uint8_t  *) buff, blen);
         #endif
         Serial.printf("L212:crc16=%x\n", crc16);
-        sprintf(buff+blen, "%4x", crc16);
+        sprintf(buff+blen, "%04x", crc16);
         Serial.printf("buff after CRC=%s\n", buff);
         
         esp_err_t result = esp_now_send(mac, (uint8_t *)buff, blen+4);
@@ -265,21 +265,30 @@ public:
         char buff[IMP_CRC_LEN + 1];
         short startPos = size - IMP_CRC_LEN;
         strncpy(buff, (const char *)(data+startPos), IMP_CRC_LEN);
-        Serial.printf("L310 crcbuff=%s data=%s\n", buff, data);
-        return (int) strtoul(buff + startPos,NULL,16);
+        buff[IMP_CRC_LEN] = 0;
+        Serial.printf("L269: crcbuff=%s data=%s\n", (char *) buff, (char *) data);
+        return (int) strtoul(buff,NULL,16);
     }
 
     static int calcCRC(const uint8_t *data, int size) {
+        Serial.printf("L274: data=%s size=%d\n", data, size);
         #ifdef ESP32CRC
-          int crcCalc = esp_crc16_le(0, (const uint8_t *) data, IMP_CRC_LEN);
+          int crcCalc = esp_crc16_le(0, data, size);
         #else
-          int crcCalc= calcCRC16((const uint8_t  *) buff, blen);
+          int crcCalc= calcCRC16((const uint8_t  *) buff, size);
         #endif
         return crcCalc;
     }
 
     static int calcCRCFromFullBuff(const uint8_t *data, int size) {
         int nonCRCLen = size - IMP_CRC_LEN;
+        Serial.printf("284:CRC BUFF size=%d nonCRCLen=%d dta=", size, nonCRCLen);
+        for (int ndx=0; ndx < nonCRCLen; ndx++) {
+            Serial.print(ndx);
+            Serial.print("=");
+            Serial.print((char)data[ndx]);
+        }
+        Serial.println("");
         return calcCRC(data, nonCRCLen);    
     }
 
@@ -358,22 +367,10 @@ public:
         char *body;
         const char *sdp = (const char *)data;
         const char *dp = (const char *)buff;
-        int crcCalc;
-        strncpy(buff, sdp, IMP_APP_ID_LEN);
-        appId = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_DEST_ID_START, IMP_DEST_ID_LEN);
-        targId = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_MTYPE_START,   IMP_MTYPE_LEN);
-        msgType = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_MSG_ID_START,  IMP_MSG_ID_LEN);
-        msgId = (int)strtoul(dp, NULL, 16);
-        //  Pull last 8 bytes and compare to reste of message using
-        //  hardware CRC.
-
-        crc = extractCRC(data, dataLen);
-        Serial.printf("app=%d, targ=%d, mtype=%d mid=%d, crc=%d\n",
-          appId, targId, msgType, msgId, crc);
+        int crcCalc;        
         int crcOffset = dataLen - IMP_CRC_LEN;        
+        Serial.printf("L372: dataLen=%d data=%d\n", dataLen, data);
+        crc = extractCRC(data, dataLen);                
         int CRCCalc = calcCRCFromFullBuff((const uint8_t *) data, dataLen);
         // TODO: Compute CRC for all byes upto CRC.
         // if it fails reject it here
@@ -382,6 +379,22 @@ public:
             Serial.printf("buff=%s\n", buff);
             // TODO: Add response indicating CRC FAILURE
         }
+
+        return;
+
+        strncpy(buff, sdp, IMP_APP_ID_LEN);
+        appId = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_DEST_ID_START, IMP_DEST_ID_LEN);
+        targId = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_MTYPE_START,   IMP_MTYPE_LEN);
+        msgType = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_MSG_ID_START,  IMP_MSG_ID_LEN);
+        msgId = (int)strtoul(dp, NULL, 16);
+        //  Pull last 8 bytes and compare to rest of message using
+        //  hardware CRC.
+        Serial.printf("app=%d, targ=%d, mtype=%d mid=%d, crc=%d\n",
+          appId, targId, msgType, msgId, crc);
+       
         // Get a pointer to our body string. 
         int bodyLen = crcOffset - IMP_PAYLOAD_START;
         strncpy(buff,sdp + IMP_PAYLOAD_START, bodyLen);
@@ -415,12 +428,13 @@ public:
     // This must be a static method due to the ESPNow Design
     static void OnDataRecv(const uint8_t *macAddr, const uint8_t *data, int dataLen)
     {
-        Serial.println("OnDataRecv");
+        Serial.printf("L431: OnDataRecv dLen=%d  \n", dataLen);
         char macStr[18];
         char dbuff[ESP_NOW_MAX_DATA_LEN + 1];
         formatMac((char *)macStr, macAddr);
         memcpy(dbuff, data, dataLen);
         dbuff[dataLen] = 0;
+        Serial.printf("L437 dbuff=%s\n", dbuff);
         if (IsCommandStr(data, dataLen))
         {
             ProcessCommand(macAddr, (uint8_t *)dbuff, dataLen);
@@ -531,7 +545,7 @@ public:
                 // connection in the Reponse record.
                 Serial.printf("L485: appId=%d\n", appId);
                 Serial.flush();
-                sprintf((char *)IMP_SBuff, "%03X:%03X:%017llX", MSGPREF, 0, COMMAND_PAIR, currOnBoardRNum);
+                sprintf((char *)IMP_SBuff, "%03X:%03X:%017llX ...", MSGPREF, 0, COMMAND_PAIR, currOnBoardRNum);
                 Serial.println("L487: after sprintf");
                 Serial.flush();
                 //uint64_t key = makeInitKey(KEYS_KEY1, IMP_MAC, IMP_MAC);

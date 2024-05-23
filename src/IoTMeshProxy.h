@@ -40,12 +40,32 @@ class IoTMeshProxy;
 esp_now_peer_info_t IMP_Broadcaster = {};
 const uint8_t IMP_BroadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
 int IMP_CHANNEL = 1;
-const short IMP_MAX_MSG_LEN=250;
-const short IMP_CHAR_USED_BY_HEADER=13;
-const short IMP_CHAR_USED_BY_CRC=4;
-const short IMP_CHAR_USED_BY_OVERHEAD= IMP_CHAR_USED_BY_HEADER + IMP_CHAR_USED_BY_CRC;
-const short IMP_MAX_PAYLOAD_LEN= IMP_MAX_MSG_LEN - IMP_CHAR_USED_BY_OVERHEAD;
+const int IMP_DEF_APP_ID=1;
+#ifndef IMP_APP_ID
+  const int IMP_APP_ID = IMP_DEF_APP_ID;
+#endif
+const int IMP_BROAD_TARG_ID=0XFFFF;
+const short IMP_MAX_MSG_LEN = 250;
+const short IMP_APP_ID_LEN = 3;
+const short IMP_DEST_ID_LEN = 4;
+const short IMP_MTYPE_LEN = 3;
+const short IMP_MSG_ID_LEN = 4;
+const short IMP_CRC_LEN = 4;
+const short IMP_APP_ID_START  = 0;
+const short IMP_DEST_ID_START = IMP_APP_ID_START  + IMP_APP_ID_LEN;
+const short IMP_MTYPE_START   = IMP_DEST_ID_START + IMP_DEST_ID_LEN;
+const short IMP_MSG_ID_START  = IMP_MTYPE_START   + IMP_MTYPE_LEN;
+const short IMP_PAYLOAD_START = IMP_MSG_ID_START  +  IMP_MSG_ID_LEN;
+const short IMP_CHAR_USED_BY_HEADER = (
+    IMP_APP_ID_LEN + IMP_DEST_ID_LEN + IMP_MTYPE_LEN
+    + IMP_MSG_ID_LEN);
+const short IMP_CHAR_USED_BY_OVERHEAD = IMP_CHAR_USED_BY_HEADER + IMP_CRC_LEN;
+const short IMP_MAX_PAYLOAD_LEN = IMP_MAX_MSG_LEN - IMP_CHAR_USED_BY_OVERHEAD;
 const char  IMP_DefaultConfigName[] = "IoTMesh.cfg";
+const int IMP_MAX_MSG_ID=0xFFFF;
+const int IMP_MAX_DEST_ID = 0xFFFF;
+
+
 char *IMP_SBuff=NULL;
 IoTMeshProxy *IMP_FirstHandler=NULL;    
 bool IMP_isStaticInitComplete=false;
@@ -58,8 +78,8 @@ uint8_t IMP_MAC[6];
 #define PAIR_FOR_MS 30000
 #define MSGPREF 01
 #define COMMAND_PAIR 001
-#define MAXHEX3 4096
-#define MAXHEX4 65535
+#define MAXHEX3 0xFFF
+#define MAXHEX4 0xFFFF
 class IoTMeshProxy
 {
 
@@ -68,13 +88,14 @@ public:
     // Instance Variables
     uint64_t currOnBoardRNum = random_in_range(1, UINT64_MAX);
     unsigned long long privKey = 0;
-    unsigned long long pubKey = 0;
+    uint64_t pubKey = 0;
     unsigned long long sharedKey = 0;
     unsigned long pair_for_ms = PAIR_FOR_MS;
-    short appId = 0;
+    int appId = IMP_APP_ID;
     unsigned long lastPairStarted = 0;
     unsigned long lastPairSent = 0;
     IoTMeshProxy *nextHandler = NULL;
+    short currMsgId=0;
     
 
     /* Default constructor */
@@ -89,7 +110,8 @@ public:
         }
         //privKey = genPrivateKey();
         //pubKey = genPublicKey(privKey);
-        IoTMeshProxy::RegisterHandler(this);
+        IoTMeshProxy::RegisterHandler(this);        
+        pubKey = makeInitKey(KEYS_KEY1, IMP_MAC,IMP_MAC);
     }
 
     bool isInPairMode()
@@ -171,23 +193,59 @@ public:
 
     // formats message and sends it to the target MAC ID.
     // returns ESP_IK or one of errors ESP_ERR values
-    int sendMsg(uint8_t mac, short appId, short destId, short msgType, short msgId, char *data, int dtaSize) {
+    int sendMsg(uint8_t *mac, int appId, int destId, int msgType, int msgId, char *data, short dtaSize) {        
         char buff[IMP_MAX_MSG_LEN+1];
         if (dtaSize > IMP_MAX_PAYLOAD_LEN) {
             return IMP_PAYLOAD_TOO_LONG;
         }
-        dtaSize = max(0,min(dtaSize, IMP_MAX_PAYLOAD_LEN));
-        data[dtaSize] = 0; // limit our buffer size sent. 
-        int blen=sprintf(buff, "%3x%4x%3x%3x%s",
+        //Serial.printf("app=%d ", appId);
+        Serial.printf("mac=%02x:%02x:%02x:%02x:%02x:%02x app=%03x dest=%04x type=%03x msg#=%04x dtaSize=%d\n", 
+           mac[0],mac[1],mac[2],mac[3],mac[4],mac[5], appId, destId, msgType, msgId, dtaSize);
+        dtaSize = max(0,min(dtaSize, IMP_MAX_PAYLOAD_LEN));        
+        /*
+        int blen=sprintf(buff, "%3x%4x%3x%3x",
             min(appId,MAXHEX3), min(destId,MAXHEX4), min(msgType,MAXHEX3), 
-            min(msgId,MAXHEX4), data);
+            min(msgId,MAXHEX4));
+        */
+
+       
+        int blen=snprintf(buff, IMP_MAX_MSG_LEN, "%03x%04x%03x%03x",
+            min(appId,MAXHEX3), min(destId,MAXHEX4), min(msgType,MAXHEX3), 
+            min(msgId,MAXHEX4));
+        short dataEndNdx = blen + dtaSize;
+        char *src = data;        
+        for (int ndx=blen; ndx<=dataEndNdx; ndx++){
+            buff[ndx] = *src;
+            *src++;
+        }
+        blen += dtaSize;
+        buff[blen]=0;
+
+        //Serial.printf("data=%s\n", data);
+        //Serial.printf("L206 blen=%d dtaSize=%d\n", blen, dtaSize);
+        //Serial.printf("L217 buff=%s\n", buff);
+        
+        Serial.printf("L206 blen=%d dtaSize=%d buff=%s\n", blen, dtaSize, buff);
+        
         #ifdef ESP32CRC
           uint16_t crc16 = esp_crc16_le(0, (const uint8_t *) buff, blen);
         #else
           uint16_t crc16 = calcCRC16((const uint8_t  *) buff, blen);
         #endif
+        Serial.printf("L212:crc16=%x\n", crc16);
         sprintf(buff+blen, "%4x", crc16);
+        Serial.printf("buff after CRC=%s\n", buff);
         
+        esp_err_t result = esp_now_send(mac, (uint8_t *)buff, blen+4);
+        if (result != ESP_OK)
+        {
+            const char *errStr = EspNowError(result);
+            Serial.printf("failed send res=%d %s\n", result, errStr);
+        }      
+        return result;  
+        #ifdef XXX
+        #endif
+        return 0;
     }
 
     static void SendBroadcast(const uint8_t *msg, int size)
@@ -201,17 +259,59 @@ public:
         }        
     }
 
+    // extract CRC from end of a string so we can 
+    // compare it to the CRC we calcualte locally
+    static int extractCRC(const uint8_t *data, int size) {
+        char buff[IMP_CRC_LEN + 1];
+        short startPos = size - IMP_CRC_LEN;
+        strncpy(buff, (const char *)(data+startPos), IMP_CRC_LEN);
+        Serial.printf("L310 crcbuff=%s data=%s\n", buff, data);
+        return (int) strtoul(buff + startPos,NULL,16);
+    }
+
+    static int calcCRC(const uint8_t *data, int size) {
+        #ifdef ESP32CRC
+          int crcCalc = esp_crc16_le(0, (const uint8_t *) data, IMP_CRC_LEN);
+        #else
+          int crcCalc= calcCRC16((const uint8_t  *) buff, blen);
+        #endif
+        return crcCalc;
+    }
+
+    static int calcCRCFromFullBuff(const uint8_t *data, int size) {
+        int nonCRCLen = size - IMP_CRC_LEN;
+        return calcCRC(data, nonCRCLen);    
+    }
+
+
     static bool IsCommandStr(const uint8_t *data, int dataLen)
     {
-        if (dataLen < 6)
+        // see if we have enough characters to represent
+        // a valid command. 
+        if (dataLen < IMP_CHAR_USED_BY_OVERHEAD)
         {
             return false;
         }
-        if ((data[4] == ':') && (isxdigit(data[0])) && (isxdigit(data[1])) && (isxdigit(data[2])))
-        {
-            return true;
+
+        // check our CRC Area to ensure it contains only
+        // valid hex digits
+        for (int ndx=0; ndx < IMP_CHAR_USED_BY_HEADER; ndx++) {
+            if (!isxdigit(data[0])) {
+                return false;
+            }
         }
-        return false;
+
+        // Check our CRC Area to ensure it contains only
+        // valid hex digits.
+        int crcStart = dataLen - IMP_CRC_LEN;
+        for (int ndx=crcStart; ndx<dataLen; ndx++) {
+            if (!isxdigit(data[0])) {
+                return false;
+            }
+        }
+        // we survived the basic checks to so it looks
+        // like a potentially valid command. 
+        return true;
     } // func
 
 
@@ -241,42 +341,50 @@ public:
         }
     } // func
 
-    void processCommand(short appId, short targId, short msgType, short msgId, uint8_t *body)
+    void processCommand(const uint8_t *MAC, int appId, int targId, int msgType, int msgId, uint8_t *body, int bodySize)
     {
     }
 
+
+
     static void ProcessCommand(const uint8_t *macAddr, uint8_t *data, int dataLen)
     {
-        short appId;   // To store ID (3 hex digits + null terminator)
-        short msgType; // To store command (3 hex digits + null terminator)
-        short targId;
-        short msgId;
+        int appId;   // To store ID (3 hex digits + null terminator)
+        int msgType; // To store command (3 hex digits + null terminator)
+        int targId;
+        int msgId;
         long crc;
-        char buff[16];
+        char buff[IMP_MAX_MSG_LEN+1];
         char *body;
         const char *sdp = (const char *)data;
         const char *dp = (const char *)buff;
-        strncpy(buff, sdp, 3);
-        appId = (short)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + 3, 4);
-        targId = (short)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + 7, 3);
-        msgType = (short)strtoul(dp, NULL, 16);
-        strncpy(buff + 10, sdp + 10, 3);
-        msgId = (short)strtoul(dp, NULL, 16);
+        int crcCalc;
+        strncpy(buff, sdp, IMP_APP_ID_LEN);
+        appId = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_DEST_ID_START, IMP_DEST_ID_LEN);
+        targId = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_MTYPE_START,   IMP_MTYPE_LEN);
+        msgType = (int)strtoul(dp, NULL, 16);
+        strncpy(buff, sdp + IMP_MSG_ID_START,  IMP_MSG_ID_LEN);
+        msgId = (int)strtoul(dp, NULL, 16);
         //  Pull last 8 bytes and compare to reste of message using
         //  hardware CRC.
-        #ifdef ESP32CRC
-          crc = (long)strtol(sdp + (dataLen - 8), NULL, 16);
-        #else
-          crc = calcCRC16((uint8_t *)buff, dataLen - 4);
-        #endif
 
-        data[dataLen - 9] = 0;
-        body = (char *)data - 8;
-
+        crc = extractCRC(data, dataLen);
+        Serial.printf("app=%d, targ=%d, mtype=%d mid=%d, crc=%d\n",
+          appId, targId, msgType, msgId, crc);
+        int crcOffset = dataLen - IMP_CRC_LEN;        
+        int CRCCalc = calcCRCFromFullBuff((const uint8_t *) data, dataLen);
         // TODO: Compute CRC for all byes upto CRC.
         // if it fails reject it here
+        if (crcCalc != crc) {
+            Serial.printf("CRC validation failed CRC=%d Calced=%d\n", crc, crcCalc);
+            Serial.printf("buff=%s\n", buff);
+            // TODO: Add response indicating CRC FAILURE
+        }
+        // Get a pointer to our body string. 
+        int bodyLen = crcOffset - IMP_PAYLOAD_START;
+        strncpy(buff,sdp + IMP_PAYLOAD_START, bodyLen);
 
         IoTMeshProxy *handler = GetHandler(appId);
         if (handler != NULL)
@@ -288,7 +396,7 @@ public:
             // those instances.   Have not made a decision about wether
             // we have a separate handler by macAddr or not.
             // create a structure with all this data and pass it.
-            handler->processCommand(appId, targId, msgType, msgId, (uint8_t *)data);
+            handler->processCommand(macAddr, appId, targId, msgType, msgId, (uint8_t *)data, bodyLen);
         }
 
     } // func
@@ -399,28 +507,58 @@ public:
         }
     } // func
 
-    void service()
-    {
-        if (this->isInPairMode())
-        {
-            if (elapMs(this->lastPairSent) > 5000)            
-            {   // don't know the other guys key yet 
+
+    int nextMsgId() {
+        currMsgId += 1;
+        if (currMsgId >= IMP_MAX_MSG_ID) {
+            currMsgId = 0;
+        }
+        return currMsgId;
+    }
+
+    void service() {
+       //Serial.print("L465: in service()");
+        bool isPairing = this->isInPairMode();
+        //Serial.printf("L458: isPairing=%d\n", isPairing);
+        if (isPairing) {
+            int sinceLastPair = elapMs(this->lastPairSent);
+            //Serial.printf("L461: sinceLastPair=%ld\n", sinceLastPair);
+            if ( sinceLastPair > 5000) {   // don't know the other guys key yet 
                 // unit65 initKey = makeInitKey(KEYS_KEY1, myMAC, myMAC, currOnBoardRNum);
-                Serial.printf("send pair request\n");
+                Serial.printf("L481: send pair request\n");
                 // Sends the pairing request with my current random number 
                 // which we will use to compute the key for the initial 
                 // connection in the Reponse record.
-                sprintf((char *)IMP_SBuff, "%03X:%03X:%017llX", MSGPREF, COMMAND_PAIR, currOnBoardRNum);
-                Serial.println("after sprintf");
+                Serial.printf("L485: appId=%d\n", appId);
+                Serial.flush();
+                sprintf((char *)IMP_SBuff, "%03X:%03X:%017llX", MSGPREF, 0, COMMAND_PAIR, currOnBoardRNum);
+                Serial.println("L487: after sprintf");
+                Serial.flush();
+                //uint64_t key = makeInitKey(KEYS_KEY1, IMP_MAC, IMP_MAC);
+                //char keyBuff[17];
+                //formatKey64(keyBuff, key);
+                
+                Serial.println("L492: before SendBroadcast");
+                Serial.flush();
+                //        int sendMsg(uint8_t *mac,                  short appId, short destId,              short msgType,       uint16_t msgId, char *data, short dtaSize) 
                 SendBroadcast((const uint8_t *)IMP_SBuff, strlen((char *)IMP_SBuff));
+                Serial.println("L495: after broadcast");
+                Serial.flush();
+                int sres = sendMsg((uint8_t *) IMP_BroadcastAddress, appId,      (int) IMP_BROAD_TARG_ID, (int) COMMAND_PAIR, nextMsgId(),    (char *)"PAIR",        (int)   4);  
+                Serial.println("L497: after sendMsg");
+                Serial.flush();
                 this->lastPairSent = millis();
             }
         }
     }
 
+//const short IMP_APP_ID=1;
+//const short IMP_BROAD_TARG_ID=UINT16_MAX;
+
     void loadConfig(char *fiName)
     {
     }
+
 
     void loadConfig()
     {

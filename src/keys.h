@@ -32,6 +32,7 @@
 #include <string.h>
 //#include <math.h>
 #include <stdio.h>
+#include "util.h"
 
 #ifndef KEYS_KEY1
   // overridge this by defining application or company specific 
@@ -39,7 +40,6 @@
   // will not work. 
   const uint64_t KEYS_KEY1 = 5370282887863;
 #endif 
-
 
 uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2, uint64_t rnum ) {
     uint64_t k1m;
@@ -49,6 +49,15 @@ uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2, uint64_t r
     return startKey | k1m ^ k2m | rnum;
 }
 
+
+uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2 ) {
+    uint64_t rnum = random_in_range(0,__UINT64_MAX__);
+    return makeInitKey(startKey, mac1, mac2, rnum);
+}
+
+void formatKey64(char *dest, uint64_t numIn) {
+  sprintf(dest, "%16X", numIn);
+}
 
 
 #endif 

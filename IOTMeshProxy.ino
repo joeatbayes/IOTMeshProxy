@@ -6,6 +6,7 @@
  *
  */
 
+#define SEND_PERIODIC_BROADCAST
 
 #include "src/IoTMeshProxy.h"
 

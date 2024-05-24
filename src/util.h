@@ -9,6 +9,14 @@
   #include <Arduino.h>
   #include "esp_random.h"
   
+  #define ESP32CRC
+  #ifdef ESP32CRC
+    #include <esp_crc.h>
+    //#include "crc.h"
+  #else
+    #include "CRC.h" // see: https://github.com/RobTillaart/CRC/
+    #include "CRC16.h"
+  #endif
 
 // Format a standard format 6 byte MAC for human
 // readability
@@ -49,6 +57,32 @@ uint64_t random_in_range(uint64_t min, uint64_t max) {
   }
   return (uint64_t) tr;
 }
+
+
+long getHexInt(uint8_t *data, short startNdx, short len) {
+    char buff[16];
+    strncpy(buff, (const char *) data + startNdx, len);
+    buff[len]=0;
+    long aint = (int)strtoul(buff, NULL, 16);
+    //Serial.printf("startNdx=%d len=%d buff=%s aint=%x aintD=%d",
+    //  startNdx, len, buff, aint, aint);
+    //delay(50);
+    return aint;
+}
+
+int calcCRC(const uint8_t *data, int size) {
+        Serial.printf("L274: data=%s size=%d\n", data, size);
+        delay(50);
+        #ifdef ESP32CRC
+          int crcCalc = esp_crc16_le(0, data, size);
+        #else
+          int crcCalc= calcCRC16((const uint8_t  *) buff, size);
+        #endif
+        Serial.printf("L281: crcCalc=%x\n", crcCalc);
+        delay(50);
+        return crcCalc;
+}
+
 
 
 

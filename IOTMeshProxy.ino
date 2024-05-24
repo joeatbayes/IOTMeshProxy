@@ -17,8 +17,9 @@ char *buff[200];
 void setup()
 {
   IMP_SBuff = (char *)buff; // want proxy to reuse our buffer for string formatting in static methods  
-  delay(1200);
+  delay(100);
   Serial.begin(115200);
+  delay(100);
   Serial.println("BEGIN SETUP\n");
   pinMode(0, INPUT);
  

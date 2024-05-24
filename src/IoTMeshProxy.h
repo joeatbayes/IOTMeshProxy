@@ -23,15 +23,9 @@
 #include "keys.h"
 #include "util.h"
 #include "math.h"
+#include "queue.h"
+#include "list.h"
 
-#define ESP32CRC
-#ifdef ESP32CRC
-  #include <esp_crc.h>
-  //#include "crc.h"
-#else
-  #include "CRC.h" // see: https://github.com/RobTillaart/CRC/
-  #include "CRC16.h"
-#endif
 
 
 // SEE: https://github.com/espressif/esp-idf/blob/4523f2d6/components/esp_wifi/include/esp_now.h
@@ -52,7 +46,7 @@ const short IMP_MTYPE_LEN = 3;
 const short IMP_MSG_ID_LEN = 4;
 const short IMP_CRC_LEN = 4;
 const short IMP_APP_ID_START  = 0;
-const short IMP_DEST_ID_START = IMP_APP_ID_START  + IMP_APP_ID_LEN;
+const short IMP_DEST_ID_START = IMP_APP_ID_START + IMP_APP_ID_LEN;
 const short IMP_MTYPE_START   = IMP_DEST_ID_START + IMP_DEST_ID_LEN;
 const short IMP_MSG_ID_START  = IMP_MTYPE_START   + IMP_MTYPE_LEN;
 const short IMP_PAYLOAD_START = IMP_MSG_ID_START  +  IMP_MSG_ID_LEN;
@@ -80,6 +74,51 @@ uint8_t IMP_MAC[6];
 #define COMMAND_PAIR 001
 #define MAXHEX3 0xFFF
 #define MAXHEX4 0xFFFF
+
+
+int calcCRCFromFullBuff(const uint8_t *data, int size) {
+        int nonCRCLen = size - IMP_CRC_LEN;
+        Serial.printf("284:CRC BUFF size=%d nonCRCLen=%d dta=", size, nonCRCLen);
+        delay(50);
+        return calcCRC(data, nonCRCLen);    
+}
+
+#define IMP_PAYLOAD_TOO_LONG 87
+
+const char *EspNowError(int errNum)    {
+    switch (errNum)
+    {
+    case ESP_OK:
+        return "OK";
+    case ESP_ERR_ESPNOW_BASE:
+        return "ESP_ERR_ESPNOW_BASE";
+    case ESP_ERR_ESPNOW_NOT_INIT:
+        return "ESP_ERR_ESPNOW_NOT_INIT";
+    case ESP_ERR_ESPNOW_ARG:
+        return "ESP_ERR_ESPNOW_ARG";
+    case ESP_ERR_ESPNOW_NO_MEM:
+        return "ESP_ERR_ESPNOW_NO_MEM";
+    case ESP_ERR_ESPNOW_FULL:
+        return "ESP_ERR_ESPNOW_FULL";
+    case ESP_ERR_ESPNOW_NOT_FOUND:
+        return "ESP_ERR_ESPNOW_NOT_FOUND";
+    case ESP_ERR_ESPNOW_INTERNAL:
+        return "ESP_ERR_ESPNOW_INTERNAL";
+    case ESP_ERR_ESPNOW_EXIST:
+        return "ESP_ERR_ESPNOW_EXIST";
+    case ESP_ERR_ESPNOW_IF:
+        return "ESP_ERR_ESPNOW_IF";
+    case IMP_PAYLOAD_TOO_LONG:
+        return "PAYLOAD TOO LONG";
+    // case  ESP_ERR_ESPNOW_CHAN:
+    //   return "ESP_ERR_ESPNOW_CHAN";
+    default:
+        return "ESP UNKNOWN ERROR";
+    } // switch
+} // func
+
+
+
 class IoTMeshProxy
 {
 
@@ -130,41 +169,7 @@ public:
         }
     } // func
 
-    #define IMP_PAYLOAD_TOO_LONG 87
-
-    static const char *EspNowError(int errNum)
-    {
-        switch (errNum)
-        {
-        case ESP_OK:
-            return "OK";
-        case ESP_ERR_ESPNOW_BASE:
-            return "ESP_ERR_ESPNOW_BASE";
-        case ESP_ERR_ESPNOW_NOT_INIT:
-            return "ESP_ERR_ESPNOW_NOT_INIT";
-        case ESP_ERR_ESPNOW_ARG:
-            return "ESP_ERR_ESPNOW_ARG";
-        case ESP_ERR_ESPNOW_NO_MEM:
-            return "ESP_ERR_ESPNOW_NO_MEM";
-        case ESP_ERR_ESPNOW_FULL:
-            return "ESP_ERR_ESPNOW_FULL";
-        case ESP_ERR_ESPNOW_NOT_FOUND:
-            return "ESP_ERR_ESPNOW_NOT_FOUND";
-        case ESP_ERR_ESPNOW_INTERNAL:
-            return "ESP_ERR_ESPNOW_INTERNAL";
-        case ESP_ERR_ESPNOW_EXIST:
-            return "ESP_ERR_ESPNOW_EXIST";
-        case ESP_ERR_ESPNOW_IF:
-            return "ESP_ERR_ESPNOW_IF";
-        case IMP_PAYLOAD_TOO_LONG:
-            return "PAYLOAD TOO LONG";
-        // case  ESP_ERR_ESPNOW_CHAN:
-        //   return "ESP_ERR_ESPNOW_CHAN";
-        default:
-            return "ESP UNKNOWN ERROR";
-        } // switch
-    } // func
-
+ 
     // formats message and sends it to target MAC Id.   Returns any
     // error 
 
@@ -208,8 +213,9 @@ public:
             min(msgId,MAXHEX4));
         */
 
-       
-        int blen=snprintf(buff, IMP_MAX_MSG_LEN, "%03x%04x%03x%03x",
+        // WARNING: If changing this format string then you must change
+        // the field size and position ordering in processMessage
+        int blen=snprintf(buff, IMP_MAX_MSG_LEN, "%03x%04x%03x%04x",
             min(appId,MAXHEX3), min(destId,MAXHEX4), min(msgType,MAXHEX3), 
             min(msgId,MAXHEX4));
         short dataEndNdx = blen + dtaSize;
@@ -270,27 +276,6 @@ public:
         return (int) strtoul(buff,NULL,16);
     }
 
-    static int calcCRC(const uint8_t *data, int size) {
-        Serial.printf("L274: data=%s size=%d\n", data, size);
-        #ifdef ESP32CRC
-          int crcCalc = esp_crc16_le(0, data, size);
-        #else
-          int crcCalc= calcCRC16((const uint8_t  *) buff, size);
-        #endif
-        return crcCalc;
-    }
-
-    static int calcCRCFromFullBuff(const uint8_t *data, int size) {
-        int nonCRCLen = size - IMP_CRC_LEN;
-        Serial.printf("284:CRC BUFF size=%d nonCRCLen=%d dta=", size, nonCRCLen);
-        for (int ndx=0; ndx < nonCRCLen; ndx++) {
-            Serial.print(ndx);
-            Serial.print("=");
-            Serial.print((char)data[ndx]);
-        }
-        Serial.println("");
-        return calcCRC(data, nonCRCLen);    
-    }
 
 
     static bool IsCommandStr(const uint8_t *data, int dataLen)
@@ -304,8 +289,8 @@ public:
 
         // check our CRC Area to ensure it contains only
         // valid hex digits
-        for (int ndx=0; ndx < IMP_CHAR_USED_BY_HEADER; ndx++) {
-            if (!isxdigit(data[0])) {
+        for (int ndx=0; ndx <= IMP_CHAR_USED_BY_HEADER; ndx++) {
+            if (isxdigit(data[0]) == 0) {
                 return false;
             }
         }
@@ -314,7 +299,7 @@ public:
         // valid hex digits.
         int crcStart = dataLen - IMP_CRC_LEN;
         for (int ndx=crcStart; ndx<dataLen; ndx++) {
-            if (!isxdigit(data[0])) {
+            if (isxdigit(data[0])== 0) {
                 return false;
             }
         }
@@ -352,53 +337,46 @@ public:
 
     void processCommand(const uint8_t *MAC, int appId, int targId, int msgType, int msgId, uint8_t *body, int bodySize)
     {
+        Serial.println("IN instance level command processor");
     }
-
 
 
     static void ProcessCommand(const uint8_t *macAddr, uint8_t *data, int dataLen)
     {
-        int appId;   // To store ID (3 hex digits + null terminator)
-        int msgType; // To store command (3 hex digits + null terminator)
-        int targId;
-        int msgId;
-        long crc;
+        
+        long crcExt;
         char buff[IMP_MAX_MSG_LEN+1];
         char *body;
         const char *sdp = (const char *)data;
-        const char *dp = (const char *)buff;
-        int crcCalc;        
+        const char *dp = (const char *)buff;        
         int crcOffset = dataLen - IMP_CRC_LEN;        
-        Serial.printf("L372: dataLen=%d data=%d\n", dataLen, data);
-        crc = extractCRC(data, dataLen);                
-        int CRCCalc = calcCRCFromFullBuff((const uint8_t *) data, dataLen);
-        // TODO: Compute CRC for all byes upto CRC.
-        // if it fails reject it here
-        if (crcCalc != crc) {
-            Serial.printf("CRC validation failed CRC=%d Calced=%d\n", crc, crcCalc);
+        //Serial.printf("L372: dataLen=%d data=%s\n", dataLen, data);
+        //delay(50);
+        crcExt = extractCRC(data, dataLen);                
+        //Serial.printf("L383: CRC Extracted=%x\n", crcExt);
+        //delay(50);
+        int crcCalc = calcCRCFromFullBuff((const uint8_t *) data, dataLen);
+        //Serial.printf("L386: CRCCalc=%x\n", crcCalc);        
+        if (crcCalc != crcExt) {
+            Serial.printf("CRC validation failed CRC=%x Calced=%x\n", crcExt, crcCalc);
+            delay(50);
             Serial.printf("buff=%s\n", buff);
-            // TODO: Add response indicating CRC FAILURE
+            delay(50);
+            // TODO: Send Add response indicating CRC FAILURE
         }
 
-        return;
-
-        strncpy(buff, sdp, IMP_APP_ID_LEN);
-        appId = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_DEST_ID_START, IMP_DEST_ID_LEN);
-        targId = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_MTYPE_START,   IMP_MTYPE_LEN);
-        msgType = (int)strtoul(dp, NULL, 16);
-        strncpy(buff, sdp + IMP_MSG_ID_START,  IMP_MSG_ID_LEN);
-        msgId = (int)strtoul(dp, NULL, 16);
-        //  Pull last 8 bytes and compare to rest of message using
-        //  hardware CRC.
-        Serial.printf("app=%d, targ=%d, mtype=%d mid=%d, crc=%d\n",
-          appId, targId, msgType, msgId, crc);
-       
+        int appId = getHexInt(data, 0, IMP_APP_ID_LEN);
+        int destId= getHexInt(data, IMP_DEST_ID_START, IMP_DEST_ID_LEN);
+        int msgType =getHexInt(data, IMP_MTYPE_START,   IMP_MTYPE_LEN);
+        int msgId = getHexInt(data, IMP_MSG_ID_START, IMP_MSG_ID_LEN);
+        Serial.printf("app=%x, destId=%x, mtype=%x mid=%d, crc=%04x\n",
+          appId, destId, msgType, msgId, crcExt);
+        delay(50);
+        
         // Get a pointer to our body string. 
         int bodyLen = crcOffset - IMP_PAYLOAD_START;
         strncpy(buff,sdp + IMP_PAYLOAD_START, bodyLen);
-
+        
         IoTMeshProxy *handler = GetHandler(appId);
         if (handler != NULL)
         {
@@ -409,10 +387,12 @@ public:
             // those instances.   Have not made a decision about wether
             // we have a separate handler by macAddr or not.
             // create a structure with all this data and pass it.
-            handler->processCommand(macAddr, appId, targId, msgType, msgId, (uint8_t *)data, bodyLen);
+            handler->processCommand(macAddr, appId, destId, msgType, msgId, (uint8_t *)data, bodyLen);
         }
 
     } // func
+
+
 
     // Method called by ESPNow whenever a message is sucessfully
     // sent.  This must be a static method due to the ESPNow design
@@ -422,21 +402,30 @@ public:
         char macStr[18];
         formatMac((char *)macStr, macAddr);
         Serial.printf("last Sent mac=%s status=%d\n", (uint8_t *)macStr, status);
+        delay(50);
     } // func
 
     // Method called by Called by ESPNOW when messages are received.
     // This must be a static method due to the ESPNow Design
-    static void OnDataRecv(const uint8_t *macAddr, const uint8_t *data, int dataLen)
-    {
-        Serial.printf("L431: OnDataRecv dLen=%d  \n", dataLen);
+    static void OnDataRecv(const uint8_t *macAddr, const uint8_t *dataIn, int dataLen)
+    {        
+        Serial.printf("L431: OnDataRecv dLen=%d  \n", dataLen);        
         char macStr[18];
-        char dbuff[ESP_NOW_MAX_DATA_LEN + 1];
+        uint8_t dbuff[ESP_NOW_MAX_DATA_LEN + 1];
+        dataLen = min(dataLen, ESP_NOW_MAX_DATA_LEN);
         formatMac((char *)macStr, macAddr);
-        memcpy(dbuff, data, dataLen);
+        memcpy(dbuff, dataIn, dataLen);
         dbuff[dataLen] = 0;
-        Serial.printf("L437 dbuff=%s\n", dbuff);
-        if (IsCommandStr(data, dataLen))
+        Serial.printf("L437: dlen=%d dbuff=%s\n", dataLen, (char *) dbuff);
+        Serial.print(" check all xdig: ");
+        //for (int i=0; i<dataLen; i++) {
+        //    Serial.printf(" i=%d c=%c isXDigit=%d\n", i, (char) dbuff[i], (int) isxdigit(dbuff[i]) );
+        //    delay(100);
+        //}
+
+        if (IsCommandStr(dbuff, dataLen))
         {
+            Serial.println("found a command string");
             ProcessCommand(macAddr, (uint8_t *)dbuff, dataLen);
         }
         else

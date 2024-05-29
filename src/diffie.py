@@ -72,6 +72,20 @@ def diffie(P, G, x1, x2):
     
 diffie(23,19,17,8)
 diffie(239,123,210,212)
+# Thinking about this wondering if we can use 6 or 10 of these 
+# smaller numbers and bring together and makes better than
+# what we have in keys.h until we find a libarary that 
+# truely solves the problem. I think it wouldn't really work
+# because hackers  could separate and solve in isolation 
+# unless there was no way for them to figure out the 
+# grouping but if that is the case then there is no way 
+# for the peer device to figure it out either and they would 
+# need to do so to make diffie hellman work. For this to work 
+# well we need a alternative pow function that can work against 
+# 1000 bit numbers. Probably better to just wait until espressiff 
+# offers the mpow function as part of security features.
+# or just make it easy for devices to auto generate counter signed 
+# TLS or PKI certificates.
 diffie(641, 344, 619, 601)
-diffie(526271,210504, 500001, 498117)
-diffie(53787863,25869888, 10007863, 33007863)
+diffie(526271,210504, 500001, 498117) # essentially crashes the process
+diffie(53787863,25869888, 10007863, 33007863) # essentially crashes the process

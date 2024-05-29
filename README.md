@@ -94,6 +94,83 @@ If the node needs to exchange data with that peer later, it needs to send a broa
 
 These broadcast connections must be sent during the wake interval. However, if the requesting node doesn't get a response, it wakes up more often and stays awake longer, trying to find an interval when the other party is listening.
 
+## Handshaking
+
+How to determine it is time for a given node to connect to 
+others since each wakeup event costs power. 
+
+### Handshake for new Nodes
+- User Action places more than 1 node in pairing MODE.
+- Each Node Sends Broadcast "pairing" with MAC
+- Responding Node Sends - PAIR-REQ using preshared
+  AES Key.  
+    - Once a Node identifies the peer 
+      it wants to add it automatically adds that MAC
+      to peer using encrypted channel.  
+    - NOTE: This key to be replaced with diffie 
+      hellman negotiated key once we figure out 
+      how to use the RSA modular exponenation feature
+      built into the hardware.
+
+-  Peer with lower MAC address sends PAIR-RAND 
+   which includes a large random number.  Both 
+   peers change encryption key for their 
+   communcation channel. 
+
+-  Both peers save the Agreed key plus MAC in 
+   preferences 
+
+-  Both Nodes send PAIR-TIMING message including
+   intended sleep verus wake intervals which is 
+   also saved in Permenant storage.
+
+### Handshake for previously paired Nodes When 1 node has preferred upload path
+More than one node wakes up at same time.
+Node determines it has a message to send or deliver
+
+
+### Handshake for Previously Paired Nodes
+- More than one nodes wake up at same time. 
+- Starts a wakeup / last action event
+- Each Node sends NODE-AVAIL broadcast
+  - This is required because even if a given node does 
+    not have a message pending to send one of it's peers
+    may have data available.
+  - Broadcast is used to reduce power required. and allow
+    other peers to avoid the need to add peers for every 
+    allowed pair mode until we know that peer is availble.
+- Receiving Node: 
+  - Checks to see if this node is in the approved 
+    peer list for direct connect peers.
+  - Sends NODE-AVAIL-ACK 
+    - This is needed because if we don't get an an ack
+      we may have lost time synchronization or upstream node
+      may have been removed.  If time synch is lost then this
+      node may need to wake up more often and stay awake for 
+      longer until it can resync time. 
+  - If either Node has messages pending for other
+    both add the other using the existing peer / pair 
+    encryption key.   Then sends NODE-CONNECT
+    message to other node every 500ms until receive
+    NODE-CONNECT-ACK. 
+  - Start sending messages pending. 
+- Each node stays awake until all messages 
+  have been exchanged and for a minimum 
+  wake interval. 
+
+- How to allow new nodes to inherit previous pairing so nodes
+  can be replaced?
+
+- How to allow new nodes to inherit a limited set up upstream
+  pairing?
+  
+- NOTE: Preshared key is configured as a preference to allow easy change
+  of this key. to create different clusters. 
+ 
+
+
+
+
 
 ----
 ##  Basic Message FORMAT:
@@ -152,11 +229,11 @@ These broadcast connections must be sent during the wake interval. However, if t
                     previously negotiated connections so they can be reloaded at
                     reboot.
 
-     03 - INVALID   - Indicates message received with payload of MSGID failed CRC.  Payload 
+     04 - INVALID   - Indicates message received with payload of MSGID failed CRC.  Payload 
                       format  ORIG-MSG-ID(X3)SUPPLIED-CHECKSUM(X3)CALCULATED-CHECKSUM(X3)
                       receiver can ignore but a high reliability system will re-transmit 
                       that message if it is still in a ring buffer.
-     04 - NOTAVAIL  - Indicates messageID from INVALID command is no longer available. 
+     05 - NOTAVAIL  - Indicates messageID from INVALID command is no longer available. 
     
      10 - UART      - Data in payload is String to be delivered to emulated stream where it can 
                     be read by client using readln.  Since this is a serial stream emulator 
@@ -170,23 +247,23 @@ These broadcast connections must be sent during the wake interval. However, if t
 
      13 - REQTEMP   - Requests temperature from CPU. Returns message READRESP
 
-     13 - READREG   - Requests read of Registors identified in in payload, Registors are 
+     14 - READREG   - Requests read of Registors identified in in payload, Registors are 
                     hex encoded integers (X4) delimited by ','  Returns message READRESP
 
-     14 - READRESP  - Response from READ request.  Registers will be returned as comma
+     15 - READRESP  - Response from READ request.  Registers will be returned as comma
                     delimited list app is responsible to handle any encoding and parsing
                     max size of encoded data must be less than max payload size or will
                     be truncated.  If Requested register can not be read then max value 
                     for X4 will be returned. 
 
-     15 - WRITEREG  - Update registers, Payload is in form of REGID=VALUE\tREGID=VALUE
+     16 - WRITEREG  - Update registers, Payload is in form of REGID=VALUE\tREGID=VALUE
                       RegID will be X4,  Each entry is delimited from next set by \t.
                       values must be encoded / decoded by app logic for those registers.
                       Any side effects such as activating motors, etc is handled by
                       app level logic.  All values must fit in message payload size.
                       Response is WRITERESP
 
-      16 - WRITERESP-
+      17- WRITERESP-
 
       20 - CHUNKSTART-Optional before starting sending chunks. Payload is RegId(X4),
                       Expected data size (X8), optional resourceName char[]  
@@ -257,6 +334,18 @@ The analyzer node needs to know the relative RSSI (received signal strength indi
 ### Proxy, MESH & Discovery Commands
 
 
+
+# BLE Mesh Flooding and Upfront Planning:
+
+BLE mesh flooding, while conceptually simple, presents a challenge for large-scale sensor networks. Due to message congestion and the cost of message replication across nodes, it necessitates careful upfront planning involving clustering, inter-cluster communication, and dedicated backhaul for bridges. Failing to consider these factors can quickly exhaust the message transfer capacity of every node, leading to network instability, shortented battery life and unreliable data collection. This planning involves:
+
+ * Clustering: Grouping BLE devices into clusters helps manage traffic and prevents network-wide flooding.
+ * Inter-Cluster Communication: Bridges are needed to control traffic movement between clusters, ensuring messages stay within designated areas.
+ * Backhaul for Bridges: These bridges require dedicated backhaul paths to deliver data to uplink nodes without overwhelming other clusters with messages.
+
+Limitations of Flooding: This flooding approach not only exhausts the battery of the nodes that need to deliver the message, but also drains the battery of every node involved in the retransmission, significantly impacting network lifespan.
+
+The IoTMeshproxy Solution:  Our innovative approach utilizes an auto-forming shortest path strategy with congestion avoidance. This eliminates the need for complex upfront planning by dynamically routing messages along the shortest available paths, automatically bypassing congested links. This significantly reduces message overhead and network traffic, making it ideal for large-scale deployments with minimal IT intervention.
 
 # ACTIONS:
 - TODO: Negotiate WAKUP interval so clients and servers can go into

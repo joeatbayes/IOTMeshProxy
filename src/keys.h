@@ -17,12 +17,23 @@
 // conversation for long enough to exchange a true 
 // 64 bit random key. Not terribly secure against
 // a malicious listener who could dereive these 
-// keys if they know the algorithm.  I consider it
+// keys if they know the algorithm. The Keys_KEY1
+// value could likley be reverse engineered if 
+// a hacker knows the algorithm and both MAC 
+// which they can get from snooping and / or 
+// reverse engineering the firmware. I consider it
 // reasonable risk for now since these keys are 
 // at risk if the snooper is in RF range when the
 // user is configuring devices and adding them to
-// the network.   Will revisit this when I find a 
+// the network.   Will revisit when I find a 
 // good eliptic curve base diffie hellman library
+// is not needed when using a backhaul like BLE
+// which handles trusted peer addition using a 
+// different mechanism.
+// 
+// NOTE: See ESP32-S3 data sheet RAS Accelerator
+//   Large-number modular exponentiation with two optional acceleration options
+//   Should be able to use this to support diffie hellman
 
 #ifndef MP_KEY
  #define mpkeysh

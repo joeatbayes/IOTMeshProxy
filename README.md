@@ -153,9 +153,10 @@ Node determines it has a message to send or deliver
     encryption key.   Then sends NODE-CONNECT
     message to other node every 500ms until receive
     NODE-CONNECT-ACK.  This is not necessary if data 
-    flag in Node-AVAIL-ACK indicated a conneciton is needed.
-    
+    flag in Node-AVAIL-ACK indicated a conneciton is needed.    
+  
   - Start sending messages pending. 
+
 - Each node stays awake until all messages 
   have been exchanged and for a minimum 
   wake interval. 
@@ -169,10 +170,6 @@ Node determines it has a message to send or deliver
 - NOTE: Preshared key is configured as a preference to allow easy change
   of this key. to create different clusters. 
  
-
-
-
-
 
 ----
 ##  Basic Message FORMAT:
@@ -217,9 +214,9 @@ Node determines it has a message to send or deliver
                     sent as a broadcast message.  Receiving nodes that are
                     in pairing mode will respond with PAIR-REQ message.                    
 
-     02 - PAIR-REQ - Pairing response followed by Local public key. Used by original 
-                    sender of PAIRM to indicate a desire to create a pair. Once 
-                    sent both nodes will add the other as active peer using Pre-
+     02 - PAIR-REQ - Pairing response Used by original  by receiver of PAIRM
+                    to indicate a desire to create a pair. Once sent both 
+                    nodes will add the other as active peer using Pre-
                     shared key to encrypt the channel. Once sent the receiver 
                     of PAIRM will send PAIR-RAND to the partner.   On devices where
                     a user interface is possible this message will include PIN 
@@ -234,42 +231,55 @@ Node determines it has a message to send or deliver
                     1 digit PIN. Devices with more UI capability may use a longer
                     PIN.
 
-     03 - PAIR-RAND - Sent by receiver of PAIRM. on encrypted channel after 
-                     sending PAIR-REQ. Sent once every 3 seconds until PAIR-RAND-ACK
-                     is recieved or 15 seconds have elapsed.  Inlcudes a large RANDOM
-                     # which is used in keys.h to compute a new shared key for 
-                     connection between these peers. It is this new key that is saved
-                     for future communication between these nodes. 
 
+     03 - PAIR-RAND - Sent by receiver of PAIRM. on encrypted channel after 
+                    sending PAIR-REQ. Sent once every 3 seconds until PAIR-RAND-ACK
+                    is recieved or 15 seconds have elapsed.  Inlcudes a large RANDOM
+                    # which is used in keys.h to compute a new shared key for 
+                    connection between these peers. It is this new key that is saved
+                    for future communication between these nodes. 
+                     
+                    There is a small risk of two devices waking near simutaneously
+                    causing both nodes to try to send PAIR-RAND to each other.
+                    In this case the node with the numerically lowest MAC address 
+                    will win and it's random number will be used. 
+                     
      04 - PAIR-RAND-ACK - Sent by receiver of PAIRM to indicate the random number
-                     exchanged for the key has been received and sucessfully applied.
-                     Once the PAIR-RAND-ACK is reeived both nodes switch to the new 
-                     computed key. 
+                    exchanged for the key has been received and sucessfully applied.
+                    Once the PAIR-RAND-ACK is reeived both nodes switch to the new 
+                    computed key. 
 
      06 - NODE-AVAIL- Broadcast sent when node wakes up from deep sleep. 
 
-     07 - NODE-AVAIL-ACK - used by peer to allow node to it's available message
-                     has been received and processed by a previously paired node.
-                     Payload for this is a flag indicating whether we node sending 
-                     ACK desires a secure connection. When set this value 
-                     indicaes a node that it has already connected and exchanged keys with
-                     to establish a encrypted peering connection using the previously
-                     negotationed keys.  This implies the need to persistently save
-                     previously negotiated connections so they can be reloaded at
-                     reboot.
+
+     07 - NODE-AVAIL-ACK - used by peer to allow node that sent the NODE-AVAIL 
+                    to know that it's NODE-AVAIL message
+                    has been received and processed by a previously paired node.
+                    Payload for this is a flag indicating whether we node sending 
+                    ACK desires a secure connection. When set this value 
+                    indicaes a node that it has already connected and exchanged keys with
+                    to establish a encrypted peering connection using the previously
+                    negotationed keys.  This implies the need to persistently save
+                    previously negotiated connections so they can be reloaded at
+                    reboot.  If a Node sending NODE-AVAIL does not receive ACK then 
+                    it may indicate loss of time synchronization and require Resync
+                    time process to be initiated. 
 
      08 - INVALID   - Indicates message received with payload of MSGID failed CRC.  Payload 
-                      format  ORIG-MSG-ID(X3)SUPPLIED-CHECKSUM(X3)CALCULATED-CHECKSUM(X3)
-                      receiver can ignore but a high reliability system will re-transmit 
-                      that message if it is still in a ring buffer.
+                    format  ORIG-MSG-ID(X3)SUPPLIED-CHECKSUM(X3)CALCULATED-CHECKSUM(X3)
+                    receiver can ignore but a high reliability system will re-transmit 
+                    that message if it is still in a ring buffer.
+
      09 - NOTAVAIL  - Indicates messageID from INVALID command is no longer available. 
     
      10 - UART      - Data in payload is String to be delivered to emulated stream where it can 
                     be read by client using readln.  Since this is a serial stream emulator 
                     any data should be added to the UART Buffer.  Response will either be 
                     UARTFULL or UARTACK.
+
      11 - UARTFULL  - Buffer to receive UART DATA is full sender should block on their end 
                     payload is MSGID of payload of UART not processed.
+
      12 - UARTACK   - Prior UART command has been processed and added to internal buffer.
                     payload.  Payload is message ID that has been processed. senders
                     may ignore this but once received can be removed from ring buffer.

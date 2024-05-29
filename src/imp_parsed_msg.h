@@ -1,0 +1,44 @@
+
+#ifndef IMP_PARSED_MSG_H
+  #define IMP_PARSED_MSG_H
+  
+
+//#include <ctype.h>
+//#include <stdlib.h>
+//#include <string.h>
+#include "util.h"
+
+
+struct ImpParsedMsg {
+   uint8_t mac[6];
+   short appId;
+   short targId;
+   short msgType;
+   short msgId;
+   uint8_t *body;
+   short bsize;
+
+   ImpParsedMsg(const uint8_t *pMAC,  short pappId, short ptargId,  short pmsgType, 
+    short pmsgId, uint8_t *pbody, short pbsize) : appId(pappId), targId(ptargId),
+    msgType(pmsgType), msgId(pmsgId), bsize(pbsize), body(pbody)
+    {
+      memcpy(mac,pMAC,6);            
+      // NOTE: Decided to memory allocation and copy here to allow
+      // queueing and latter processing of messages.
+      body = (uint8_t *) malloc(pbsize+1);         
+      memcpy(body,pbody,pbsize);
+      body[pbsize]=0;
+    }
+
+
+    ~ImpParsedMsg() {
+        if (body != NULL) {
+            free(body);
+            body = NULL;
+        }
+    }
+
+};
+
+
+#endif

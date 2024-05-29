@@ -25,12 +25,44 @@
 #include "math.h"
 #include "queue.h"
 #include "list.h"
+#include "imp_parsed_msg.h"
+#include "imp_msg_hand.h"
 
-
+enum IMP_MTYPE {  
+  PAIRM = 1,
+  PAIR_REQ = 2,
+  PAIR_RAND = 3,
+  PAIR_RAND_ACK = 4,
+  PAIR_TIMING = 5,
+  NODE_AVAIL =  6,
+  NODE_AVAIL_ACK = 7,  
+  INVALID = 8,
+  NOT_AVAIL = 9,
+  UART = 10,
+  UART_FULL=11,
+  UART_ACK = 12,
+  REQ_TEMP = 13,
+  READ_REG = 14,
+  READ_RESP = 15,
+  WRITE_REG = 16,
+  WRITE_RESP= 17,
+  CHUNK_START = 20,
+  CHUNK = 21,
+  CHUNK_ACK = 22,
+  CHUNK_FULL = 23,
+  CHUNK_ERR = 24    
+};
 
 // SEE: https://github.com/espressif/esp-idf/blob/4523f2d6/components/esp_wifi/include/esp_now.h
+#ifndef ImpMsgHand
+class ImpMsgHand ;
+#endif
 
+
+#ifndef IoTMeshProxy
 class IoTMeshProxy;
+#endif
+
 esp_now_peer_info_t IMP_Broadcaster = {};
 const uint8_t IMP_BroadcastAddress[] = {0xFF, 0XFF, 0XFF, 0xFF, 0xFF, 0xFF};
 int IMP_CHANNEL = 1;
@@ -58,10 +90,15 @@ const short IMP_MAX_PAYLOAD_LEN = IMP_MAX_MSG_LEN - IMP_CHAR_USED_BY_OVERHEAD;
 const char  IMP_DefaultConfigName[] = "IoTMesh.cfg";
 const int IMP_MAX_MSG_ID=0xFFFF;
 const int IMP_MAX_DEST_ID = 0xFFFF;
-
+const short IMP_MAX_NUM_MSG_HAND=50;
 
 char *IMP_SBuff=NULL;
-IoTMeshProxy *IMP_FirstHandler=NULL;    
+IoTMeshProxy *IMP_FirstAppHandler=NULL;  
+// App handler is a the specific instance of the IoTMeshProxy which is processing
+// the requests as first layer after after the static callback handeling. 
+// It should not be confused with messageHandler where we have a separate instance
+// of a much smaller class used to handle different kinds of messages indexed 
+// by message type.   
 bool IMP_isStaticInitComplete=false;
 uint8_t IMP_MAC[6];
 
@@ -135,7 +172,13 @@ public:
     unsigned long lastPairSent = 0;
     IoTMeshProxy *nextHandler = NULL;
     short currMsgId=0;
-    
+    ImpMsgHand *msgHandlers[IMP_MAX_NUM_MSG_HAND];
+    // Pointer to the array of message handlers we will use 
+    // for each application type.  In this version will be simple 
+    // numberic index but may be better treated as index of hash
+    // table. Could consider a linked list and just scan it for 
+    // the correct handler. 
+
 
     /* Default constructor */
     IoTMeshProxy()
@@ -146,10 +189,14 @@ public:
             // in setup():
             InitESPNow();
             Serial.println("InitESPNow is complete()");
+
+            for (int ndx=0; ndx<IMP_MAX_NUM_MSG_HAND; ndx++) {
+              msgHandlers[ndx]=NULL;
+            } 
         }
         //privKey = genPrivateKey();
         //pubKey = genPublicKey(privKey);
-        IoTMeshProxy::RegisterHandler(this);        
+        IoTMeshProxy::RegisterAppHandler(this);        
         pubKey = makeInitKey(KEYS_KEY1, IMP_MAC,IMP_MAC);
     }
 
@@ -312,38 +359,55 @@ public:
     // return the first handler that matches the
     // requested app id or return NULL if no matching
     // handler is found.
-    static IoTMeshProxy *GetHandler(short appId)
+    static IoTMeshProxy *GetAppHandler(short appId)
     {
-        IoTMeshProxy *handler = IMP_FirstHandler;
+        IoTMeshProxy *appHandler = IMP_FirstAppHandler;
         while (true)
         {
-            if (handler == NULL)
+            if (appHandler == NULL)
             {
                 return NULL;
             }
 
-            if (handler->appId == appId)
+            if (appHandler->appId == appId)
             {
-                return handler;
+                return appHandler;
             }
 
-            if (handler->nextHandler == NULL)
+            if (appHandler->nextHandler == NULL)
             {
                 return NULL;
             }
-            handler = handler->nextHandler;
+            appHandler = appHandler->nextHandler;
         }
     } // func
 
-    void processCommand(const uint8_t *MAC, int appId, int targId, int msgType, int msgId, uint8_t *body, int bodySize)
-    {
-        Serial.println("IN instance level command processor");
+
+    void sendError(ImpParsedMsg *msg, char *errStr) {
+       char buff[IMP_MAX_MSG_LEN+1];
+
     }
 
 
-    static void ProcessCommand(const uint8_t *macAddr, uint8_t *data, int dataLen)
+    void processCommand(ImpParsedMsg *msg)
     {
-        
+        Serial.println("IN instance level command processor");
+        if ((msg->msgType < 0) || (msg->msgType >= IMP_MAX_NUM_MSG_HAND)) {
+          sendError(msg, "MTYPE OUT OF RANGE");
+        } else {
+
+        }
+        ImpMsgHand *mpro = msgHandlers[msg->msgType];
+        if (mpro == NULL ) {
+          sendError(msg, "No Handler for MTYPE");
+        }
+        mpro->processMessage(this, msg);        
+    }
+
+  
+    // Static level command 
+    static void ProcessCommand(const uint8_t *macAddr, uint8_t *data, int dataLen)
+    {        
         long crcExt;
         char buff[IMP_MAX_MSG_LEN+1];
         char *body;
@@ -377,17 +441,17 @@ public:
         int bodyLen = crcOffset - IMP_PAYLOAD_START;
         strncpy(buff,sdp + IMP_PAYLOAD_START, bodyLen);
         
-        IoTMeshProxy *handler = GetHandler(appId);
+        ImpParsedMsg pmsg(macAddr, (short) appId, (short) destId, (short) msgType, 
+          (short) msgId,  data, bodyLen);
+        IoTMeshProxy *handler = GetAppHandler(appId);
         if (handler != NULL)
         {
             //  Since we only have a single ESP32 Now onDataRecv
             //  once we recognize that we have a command we look up
             //  the class instance that will be processing it send the
             //  command there. Add command dispatch to proper handlers to
-            // those instances.   Have not made a decision about wether
-            // we have a separate handler by macAddr or not.
-            // create a structure with all this data and pass it.
-            handler->processCommand(macAddr, appId, destId, msgType, msgId, (uint8_t *)data, bodyLen);
+            // those instances.   
+            handler->processCommand(&pmsg);
         }
 
     } // func
@@ -488,20 +552,24 @@ public:
         IMP_isStaticInitComplete=true;
     } // func
 
+    // App Handler is an instance of the msg Proxy class which 
+    // most direclty manages the connections to underlying communicaiton
+    // class.   Most of the actual message processing work is proxied
+    // to the message processors.
     // register a handler instance of a proxy to process messages
     // targeted to a matching App ID. Handlers are treated as a
     // single list where the static method points at first registered
     // handler and each one points at the next one registered until
     // we hit a null and know that we have hit the end.
-    static void RegisterHandler(IoTMeshProxy *proxy)
+    static void RegisterAppHandler(IoTMeshProxy *proxy)
     {
-        if (IMP_FirstHandler == NULL)
+        if (IMP_FirstAppHandler == NULL)
         {
-            IMP_FirstHandler = proxy;
+            IMP_FirstAppHandler = proxy;
         }
         else
         {
-            IoTMeshProxy *handler = IMP_FirstHandler;
+            IoTMeshProxy *handler = IMP_FirstAppHandler;
             while (handler->nextHandler != NULL)
             {
                 handler = handler->nextHandler;
@@ -566,6 +634,14 @@ public:
     void loadConfig()
     {
         loadConfig((char *) IMP_DefaultConfigName);
+    }
+
+
+    static void RegisterMessageHandlers(IoTMeshProxy *mph) {
+       mph->msgHandlers[1] = (ImpMsgHand *) new ImpMsgPair();       
+       // TODO: Add instances for default message handlers
+       // here. 
+
     }
 
 }; // class

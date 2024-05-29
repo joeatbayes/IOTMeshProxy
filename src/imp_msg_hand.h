@@ -7,19 +7,17 @@ message specific processing
   # Must be imported after IOTMeshProxy.h
 */
 
-#include "IoTMeshProxy.h"
+//#include "IoTMeshProxy.h"
 //#include <unordered_map>
+
+#ifndef IoTMeshProxy
+  class IoTMeshProxy;
+#endif 
 
 #ifndef IMP_MSG_HAND_H
   #define IMP_MSG_HAND_H
 
-struct parsedMsg {
-   short appId;
-   short targId;
-   short msgType;
-   short msgId;
-   char  *body;
-};
+#include "imp_parsed_msg.h"
 
 //std::unordered_map<std::string, std::string> u =
 //    {
@@ -29,15 +27,18 @@ struct parsedMsg {
 //    };
     
 
-class ImpMsg {
-   
+class ImpMsgHand {
    public: 
-      char *msgTypeStr() {
+      virtual short msgType() {
+        return 0x01;
+       }
 
+      virtual const char *msgTypeStr() {
+        return "ABSTRACT"
       }
 
 
-      virtual int proc_message(IoTMeshProxy *proxy,  parsedMsg msg) {
+      virtual int processMessage(IoTMeshProxy *proxy,  ImpParsedMsg *msg) {
       
       }
 
@@ -48,12 +49,23 @@ class ImpMsg {
 
 
 
-class ImpMsgPair : public ImpMsg {
-    
-    virtual int proc_message(IoTMeshProxy *proxy,  parsedMsg msg) {
+class ImpMsgPair : public ImpMsgHand {
+  public:
+    virtual short msgType() {
+        return 0x01;
     }
 
+    virtual const char *msgTypeStr() {
+        return "pair";
+    }
+    
+    virtual int proc_message(IoTMeshProxy *proxy,  ImpParsedMsg msg) {
+      Serial.printf("proc_message ImpMsgPair");
+    }
+
+
 };
+
 
 
 

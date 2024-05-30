@@ -28,7 +28,17 @@
 #include "imp_parsed_msg.h"
 #include "imp_msg_hand.h"
 
-enum IMP_MTYPE {  
+const char * const IMP_ERR_STR[] = {
+    "MSG_TYPE_OUT_RANGE",
+    "MSG_TYPE_NO_HAND"
+};
+
+enum class IMP_ERROR {
+  MTYPE_OUT_RANGE,
+  MTYPE_NO_HAND
+};
+
+enum class IMP_MTYPE {  
   PAIRM = 1,
   PAIR_REQ = 2,
   PAIR_RAND = 3,
@@ -198,6 +208,7 @@ public:
         //pubKey = genPublicKey(privKey);
         IoTMeshProxy::RegisterAppHandler(this);        
         pubKey = makeInitKey(KEYS_KEY1, IMP_MAC,IMP_MAC);
+        RegisterMessageHandlers(this);
     }
 
     bool isInPairMode()
@@ -383,9 +394,13 @@ public:
     } // func
 
 
-    void sendError(ImpParsedMsg *msg, char *errStr) {
+    void sendError(ImpParsedMsg *msg, int errCode, const char *errStr) {
        char buff[IMP_MAX_MSG_LEN+1];
-
+       buff[IMP_MAX_MSG_LEN]=0;
+       char *b;
+       short nb = msg->toStr(buff, IMP_MAX_MSG_LEN);
+       snprintf(b+nb, IMP_MAX_MSG_LEN-nb, " err=%d, errStr=%x", errCode, errStr);
+       
     }
 
 
@@ -393,13 +408,13 @@ public:
     {
         Serial.println("IN instance level command processor");
         if ((msg->msgType < 0) || (msg->msgType >= IMP_MAX_NUM_MSG_HAND)) {
-          sendError(msg, "MTYPE OUT OF RANGE");
+          sendError(msg, (int) IMP_ERROR::MTYPE_OUT_RANGE, "");
         } else {
 
         }
         ImpMsgHand *mpro = msgHandlers[msg->msgType];
         if (mpro == NULL ) {
-          sendError(msg, "No Handler for MTYPE");
+          sendError(msg, (int) IMP_ERROR::MTYPE_NO_HAND, "");
         }
         mpro->processMessage(this, msg);        
     }

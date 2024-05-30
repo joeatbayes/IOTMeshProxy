@@ -13,6 +13,8 @@ IoTMeshProxy's innovative approach tackles this challenge head-on. It utilizes l
 
 The beauty of this system lies in its scalability and adaptability. Weak signal areas can be easily addressed by adding a few bridge nodes. Similarly, exceeding bandwidth limits in specific zones can be resolved by adding uplink nodes with the routing automatically adapting to optimize traffic flow.  The system overcomes common issues with typical mesh systems by using a semi-directed routing approach. This allows each message to follow the shortest available path, with exceptions made to avoid overloaded connections. Only discovery and network formation messages are distributed more widely, and only as far as needed to establish the shortest paths. This dramatically reduces the total message volume that each node sees, improving overall network data capacity and extending battery life.
 
+- [IoTMesh Proxy Git repository](https://github.com/joeatbayes/IOTMeshProxy)
+- [Serial Stream Debug Proxy](serial-proxy.md)
 - [IoT Mesh Proxy Protocol design specification](protocol.md)
 - [Handshaking between nodes](handshake.md)
 - [Carriers for different RF backend delivery options](carriers.md)

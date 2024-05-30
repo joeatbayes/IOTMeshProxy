@@ -34,11 +34,12 @@ class ImpMsgHand {
        }
 
       virtual const char *msgTypeStr() {
-        return "ABSTRACT"
+        return "ABSTRACT";
       }
 
 
       virtual int processMessage(IoTMeshProxy *proxy,  ImpParsedMsg *msg) {
+        return 0;
       
       }
 
@@ -61,6 +62,7 @@ class ImpMsgPair : public ImpMsgHand {
     
     virtual int proc_message(IoTMeshProxy *proxy,  ImpParsedMsg msg) {
       Serial.printf("proc_message ImpMsgPair");
+      return 0;
     }
 
 

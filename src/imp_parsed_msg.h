@@ -30,6 +30,14 @@ struct ImpParsedMsg {
       body[pbsize]=0;
     }
 
+    int toStr(char *buff, int maxSize) {
+        int nb = snprintf(buff, maxSize -1, "%x:%x:%x:%x:%x%x app:%x,targ:%x,mtype:%x,mid:%x,blen:%x,dta:%s",
+           mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],
+           appId, targId, msgType,  msgId, bsize, body);
+        buff[maxSize]=0;
+        buff[nb]=0;      
+        return nb;  
+    }
 
     ~ImpParsedMsg() {
         if (body != NULL) {

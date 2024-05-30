@@ -8,7 +8,10 @@ This was our base use case where we wanted to transport serial debug traffic fro
 
 Contact us with your special requirements so we can help guide your implementation or supply custom features as needed. 
 
+## ESPNow to Bluetooth Serial GAC
+Rather than using a physical hardware module to bridge serial traffic to where it can be seen on a serial console this verison uses a specialized class on the ESP32 bridge node to convert the IoTMeshProxy messages into Serial data streams with final delivery over bluetooth.  This can be a preferred communication strategy because it is impossible to physically damage the connected laptop linux box from a short in the high voltage portions of the ESP32 emebedded circuits.  It also makes it easy to walk up and connect without requring any new modifications or plugging in any wries.     
 
+An alternative way of supporting this is using a HC06 Bluetooth serial module hardwired into the local micro controller but when using this strategy you must stay within Bluetooth range of that module and they are fairly power hungry so you likely need to build switching to enable that module only when you need the serial debug capability. 
 
 ## LORA
 Lora offers much longer range then ESPNow which can allow longer bridges with few intermediate proxy nodes.  Additional work remains to determine how we will integrate the LORA encryption module to deliver similar functionality as ESPNOW.   It should be acknowledged that LORA transmissions will be much slower than ESPNow.  

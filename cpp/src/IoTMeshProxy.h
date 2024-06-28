@@ -227,7 +227,40 @@ public:
         }
     } // func
 
- 
+   int connectWithSharedPassword(uint8_t *mac) {
+      uint64_t pass = IMP_Keys::getSharedPassword();
+      if (!esp_now_is_peer_exist(IMP_BroadcastAddress))
+        {
+            int stat = esp_now_add_peer(&IMP_Broadcaster);
+            if (stat != ESP_OK)
+            {
+                Serial.printf("L278: failed IMP_Broadcaster add res=%d %s\n", stat, EspNowError(stat));
+            } else {
+                Serial.println("L288: Added IMP_Broadcaster as peer");
+            }
+        }
+
+   }
+
+   int connectWithNegotiatedPasswrod(uint8_t *mac) {
+
+   }
+
+   int connectWithNoPassword(uint8_t *mac) {
+
+   }
+
+   int disconnectPeer(uint8_t *mac) {
+
+   }
+
+   int forgetNegotiatedPassword(uint8_t *mac) {
+
+   }
+
+
+
+
     // formats message and sends it to target MAC Id.   Returns any
     // error 
 
@@ -256,7 +289,8 @@ public:
 
     // formats message and sends it to the target MAC ID.
     // returns ESP_IK or one of errors ESP_ERR values
-    int sendMsg(uint8_t *mac, int appId, int destId, int msgType, int msgId, char *data, short dtaSize) {        
+    int sendMsg(uint8_t *mac, int appId, int destId, int msgType, int msgId, 
+      char *data,  short dtaSize) {        
         char buff[IMP_MAX_MSG_LEN+1];
         if (dtaSize > IMP_MAX_PAYLOAD_LEN) {
             return IMP_PAYLOAD_TOO_LONG;

@@ -7,7 +7,7 @@ message specific processing
   # Must be imported after IOTMeshProxy.h
 */
 
-//#include "IoTMeshProxy.h"
+
 //#include <unordered_map>
 
 #ifndef IoTMeshProxy
@@ -18,6 +18,7 @@ message specific processing
   #define IMP_MSG_HAND_H
 
 #include "imp_parsed_msg.h"
+#include "IoTMeshProxy.h"
 
 //std::unordered_map<std::string, std::string> u =
 //    {
@@ -60,11 +61,15 @@ class ImpMsgPair : public ImpMsgHand {
         return "pair";
     }
     
-    virtual int proc_message(IoTMeshProxy *proxy,  ImpParsedMsg msg) {
+    virtual int proc_message(IoTMeshProxy *imp,  ImpParsedMsg *msg) {
       Serial.printf("proc_message ImpMsgPair");
+      char buff[80];
+      int nb = snprintf(buff, 79, "%4x", msg->msgId);
+      imp->connectWithSharedPassword(msg->mac);
+      imp->sendMsg((uint8_t *) msg->mac, (int) msg->appId, (int) msg->targId, 
+          (int) IMP_MTYPE::PAIR_REQ, (int) imp->nextMsgId(), buff, nb);
       return 0;
     }
-
 
 };
 

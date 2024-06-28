@@ -1,5 +1,17 @@
 # IOT Mesh Proxy 
-### STATUS: UNDER CONSTRUCTION - Please provide comments and contact us before using in an Important project See: license.txt
+### STATUS: UNDER CONSTRUCTION - PAUSED -
+#I oTMeshProxy: Advanced Mesh Networking for IoT and Field Sensor Devices
+
+While [ESP BLE Mesh](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/esp-ble-mesh/ble-mesh-index.html) and [ESP WiFi Mesh](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/esp-wifi-mesh.html) offer a strong foundation for IoT mesh networking, IoTMeshProxy provides additional features and capabilities:
+
+  - **Superior Field Negotiation**: Securely add new nodes to your trusted mesh directly on the field.
+  - **Auto Route Discovery**: Automatically discover new routes based on remote device capabilities, ensuring optimal connectivity.
+  -  **Multi-Wireless Bridging**: Seamlessly bridge across multiple wireless backends (e.g., BLE, WiFi) for wider coverage.
+  -  **Advanced Power Management**: Enable mostly-off nodes to act as proxies, significantly extending battery life.
+
+We're evaluating the long-term value proposition of IoTMeshProxy as an open-source project compared to utilizing it as a captive technology.
+
+# Please provide comments and contact us before using in an Important project See: license.txt
 
 #### The Challenge of Large-Scale Sensor Networks:
 

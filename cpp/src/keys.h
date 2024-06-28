@@ -44,6 +44,17 @@
 //#include <math.h>
 #include <stdio.h>
 #include "util.h"
+#include <Preferences.h>
+
+
+#ifndef KEYS_DEFAULT_SHARED
+  const uint64_t KEYS_DEFAULT_SHARED = 7241282984813;
+#endif
+
+#ifndef IMMPref
+   Preferences IMPPref;
+#endif
+
 
 #ifndef KEYS_KEY1
   // overridge this by defining application or company specific 
@@ -52,23 +63,39 @@
   const uint64_t KEYS_KEY1 = 5370282887863;
 #endif 
 
-uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2, uint64_t rnum ) {
-    uint64_t k1m;
-    uint64_t k2m;
-    memcpy(&k1m,mac1,6);
-    memcpy(&k2m,mac2,6);
-    return startKey | k1m ^ k2m | rnum;
-}
+
+class IMP_Keys {
+  public: 
+  // Return the currently active shared password
+  // if saved in prefrences return that password
+  // otherwise use the one in the firmware here
+  static uint64_t getSharedPassword() {
+    uint64_t retVal;
+    IMPPref.begin("IMP", true);
+    retVal = (uint64_t) IMPPref.getULong64("IMP_SHARED_KEY", KEYS_DEFAULT_SHARED);
+    IMPPref.end();
+    return retVal;
+  }
+
+  static uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2, uint64_t rnum ) {
+      uint64_t k1m;
+      uint64_t k2m;
+      memcpy(&k1m,mac1,6);
+      memcpy(&k2m,mac2,6);
+      return startKey | k1m ^ k2m | rnum;
+  }
 
 
-uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2 ) {
-    uint64_t rnum = random_in_range(0,__UINT64_MAX__);
-    return makeInitKey(startKey, mac1, mac2, rnum);
-}
+  static uint64_t makeInitKey(uint64_t startKey, uint8_t *mac1, uint8_t *mac2 ) {
+      uint64_t rnum = random_in_range(0,__UINT64_MAX__);
+      return makeInitKey(startKey, mac1, mac2, rnum);
+  }
 
-void formatKey64(char *dest, uint64_t numIn) {
-  sprintf(dest, "%16X", numIn);
-}
+  static void formatKey64(char *dest, uint64_t numIn) {
+    sprintf(dest, "%16X", numIn);
+  }
 
+
+ } // class
 
 #endif 
